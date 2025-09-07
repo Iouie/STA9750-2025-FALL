@@ -7,11 +7,40 @@ subtitle: "Master's Student at Baruch | Customs Broker"
 
 Hello, my name is Stanley and I'm currently a masters student at Baruch studying Statistics. I'm expected to graduate on December 2027.
 
-I'm a big fan of collecting Pokemon cards.
+I'm a fan of collecting Pokemon cards.
 
 
 ![](IMG_3958.jpg){width=30%}
 ![](IMG_3959.jpg){width=30%}
 ![](IMG_3961.jpg){width=30%}
 
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+if(!require("leaflet")){
+    options(repos=c(CRAN="https://cloud.r-project.org"))
+    install.packages("leaflet")
+    stopifnot(require("leaflet"))
+}
+
+lius_longitude <- -74.0039
+lius_latitude  <- +40.6028
+
+leaflet() |>
+  addTiles() |>
+  setView(lius_longitude, lius_latitude, zoom=17) |>
+  addPopups(lius_longitude, lius_latitude, 
+            "My favorite spot to eat soup dumplings <b> Liu's Shanghai!")
+```
+
+
 Connect with me! [LinkedIn](https://www.linkedin.com/in/stanley-louie-523136127/)
+
+```{r}
+#| include: false   
+1+1
+```
+--------------
+Last Updated: `r format(Sys.time(), "%A %m %d, %Y at %H:%M%p")`
