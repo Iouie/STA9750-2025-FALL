@@ -10,7 +10,13 @@ website:
   navbar:
     background: primary
     search: false
-    
+    right:
+      - text: "Home"
+        href: index.qmd
+      - text: "Mini Projects"
+        href: index.qmd
+      - text: "Course Projects"
+        href: index.qmd
 format:
   html:
     theme: darkly
