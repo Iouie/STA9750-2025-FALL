@@ -18,38 +18,50 @@ Hello, my name is Stanley and I'm currently a masters student at Baruch studying
 
 ### Education
 
-CUNY Baurch New York | New York, NY
+CUNY Baruch New York | New York, NY
 M.S in Statistics | Aug 2025 - Present
 
 Rochester Institute of Technology | Aug 2016 - May 2022
 B.S in New Media Interactive Development
 
+
+
+
+### Projects
+
+<div class="container">
+
+<div class="card1">
+  <h3>Mini Project 01</h3>
+  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. In venenatis.</p>
+</div>
+
+<div class="card2">
+  <h3>Mini Project 02</h3>
+  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus at.</p>
+</div>
+
+<div class="card3">
+  <h3>Mini Project 03</h3>
+  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus at.</p>
+</div>
+
+<div class="card4">
+  <h3>Mini Project 04</h3>
+  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus at.</p>
+</div>
+
+<div class="card5">
+  <h3>Final Project</h3>
+  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus at.</p>
+</div>
+
+</div>
 ```{r}
+#| include: false   
 #| echo: false
 #| message: false
 #| warning: false
-
-if(!require("leaflet")){
-    options(repos=c(CRAN="https://cloud.r-project.org"))
-    install.packages("leaflet")
-    stopifnot(require("leaflet"))
-}
-
-lius_longitude <- -74.0039
-lius_latitude  <- +40.6028
-
-leaflet() |>
-  addTiles() |>
-  setView(lius_longitude, lius_latitude, zoom=17) |>
-  addPopups(lius_longitude, lius_latitude, 
-            "My favorite spot to eat soup dumplings <b> Liu's Shanghai!")
-```
-
-
-
-```{r}
-#| include: false   
-1+1
 ```
 --------------
 Last Updated: `r format(Sys.time(), "%A %m %d, %Y at %H:%M%p")`

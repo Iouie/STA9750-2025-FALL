@@ -1,0 +1,18 @@
+.container {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  grid-gap: 5rem;
+  padding: 10px;
+}
+
+.container > div
+{
+  background-color: rgba(55, 91, 127, 0.9);
+  text-align: center;
+  padding: 10px 0;
+  font-display: 25px;
+  border-radius: 7px;
+  filter: drop-shadow(5px 5px #99ccff);
+}
+

@@ -19,5 +19,6 @@ website:
         href: index.qmd
 format:
   html:
+    css: styles.css
     theme: darkly
     toc: false
