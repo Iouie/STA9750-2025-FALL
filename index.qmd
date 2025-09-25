@@ -3,7 +3,7 @@ title: "Stanley Louie"
 subtitle: "Master's Student at Baruch | Customs Broker"
 about:
   template: solana
-  image: linkedinpic.jpg
+  image: assets/linkedinpic.jpg
   links:
     - icon: linkedin
       text: LinkedIn
@@ -18,11 +18,9 @@ Hello, my name is Stanley and I'm currently a masters student at Baruch studying
 
 ### Education
 
-CUNY Baruch New York | New York, NY
-M.S in Statistics | Aug 2025 - Present
+CUNY Baruch New York | M.S in Statistics | Aug 2025 - Present
 
-Rochester Institute of Technology | Aug 2016 - May 2022
-B.S in New Media Interactive Development
+Rochester Institute of Technology | B.S in New Media Interactive Development | Aug 2016 - May 2022
 
 
 
