@@ -134,8 +134,10 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
+<p>GLOBAL_TOP_10 &lt;- GLOBAL_TOP_10 |&gt; mutate(season_title = if_else(season_title ==“N/A”, NA, season_title))</p>
+<p>COUNTRY_TOP_10 &lt;- read_tsv(COUNTRY_TOP_10_FILENAME, na=c(“N/A”))</p>
 <hr>
-<p>Last Updated: Sunday 09 28, 2025 at 17:53PM</p>
+<p>Last Updated: Sunday 09 28, 2025 at 18:09PM</p>
 
 
 

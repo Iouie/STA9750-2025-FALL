@@ -2,6 +2,37 @@
 title: "PROJECT 1"
 ---
 
+```
+GLOBAL_TOP_10 <- GLOBAL_TOP_10 |> mutate(season_title = if_else(season_title =="N/A", NA, season_title))
+
+COUNTRY_TOP_10 <- read_tsv(COUNTRY_TOP_10_FILENAME, na=c("N/A"))
+
+1) How many different countries does Netflix operate in? (You can use the viewing history as a proxy for countries in which Netflix operates.)
+
+### create new variable to store the unique countries column and their initials. Total: 94
+
+all_countries <- distinct(COUNTRY_TOP_10, country_name, country_iso2)  
+
+2) Which non-English-language film has spent the most cumulative weeks in the global top 10? How many weeks did it spend?
+
+### create new variable to show noneng top 10 shows, only filter category to nonenglish films, select category, show title, and cumulative weeks
+
+non_engtop10 <- GLOBAL_TOP_10 |> filter(category == "Films (Non-English)") |> select(category, show_title, cumulative_weeks_in_top_10) |> arrange(desc(cumulative_weeks_in_top_10)). All Quiet on the Western Front | 23 weeks
+
+3) What is the longest film (English or non-English) to have ever appeared in the Netflix global Top 10? How long is it in minutes?
+
+Note that Netflix does not provide runtime for programs before a certain date, so your answer here may be a bit limited.
+
+longest_film <- GLOBAL_TOP_10 |> select(show_title, category, runtime) |> filter(category == "Films (Non-English)" | category == "Films (English)")|> mutate(runtime_mins = round(runtime * 60)) |> arrange(desc(runtime_mins)) |> distinct(show_title, category, runtime, runtime_mins) 
+
+Pushpa 2: The Rule (Reloaded Version) Runtime: 224mins
+
+4) For each of the four categories, what program has the most total hours of global viewership?
+
+total_weekly_viewers<- GLOBAL_TOP_10 %>% pivot_wider(names_from = category, values_from = weekly_hours_viewed)
+
+```
+
 ```{r}
 #| include: false
 1+1
