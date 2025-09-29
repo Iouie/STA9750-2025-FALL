@@ -3,6 +3,36 @@ title: "PROJECT 1"
 ---
 
 ```
+if(!dir.exists(file.path("data", "mp01"))){
+    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+}
+
+GLOBAL_TOP_10_FILENAME <- file.path("data", "mp01", "global_top10_alltime.csv")
+
+if(!file.exists(GLOBAL_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv", 
+                  destfile=GLOBAL_TOP_10_FILENAME)
+}
+
+COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
+
+if(!file.exists(COUNTRY_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv", 
+                  destfile=COUNTRY_TOP_10_FILENAME)
+}
+
+----------
+
+if(!require("tidyverse")) install.packages("tidyverse")
+library(readr)
+library(dplyr)
+
+GLOBAL_TOP_10 <- read_tsv(GLOBAL_TOP_10_FILENAME)
+
+
+---------------------
+
+
 GLOBAL_TOP_10 <- GLOBAL_TOP_10 |> mutate(season_title = if_else(season_title =="N/A", NA, season_title))
 
 COUNTRY_TOP_10 <- read_tsv(COUNTRY_TOP_10_FILENAME, na=c("N/A"))
@@ -29,7 +59,9 @@ Pushpa 2: The Rule (Reloaded Version) Runtime: 224mins
 
 4) For each of the four categories, what program has the most total hours of global viewership?
 
-total_weekly_viewers<- GLOBAL_TOP_10 %>% pivot_wider(names_from = category, values_from = weekly_hours_viewed)
+total_weekly_viewers<- GLOBAL_TOP_10 %>% group_by(category) %>% summarise(total = sum(weekly_hours_viewed)) %>% arrange(desc(total))
+
+5) Which TV show had the longest run in a country’s Top 10? How long was this run and in what country did it occur?
 
 ```
 
