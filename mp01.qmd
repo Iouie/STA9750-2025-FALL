@@ -41,6 +41,7 @@ if(!file.exists(COUNTRY_TOP_10_FILENAME)){
 library(readr)
 library(dplyr)
 library(stringr)
+library(DT)
 
 COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
 
@@ -52,7 +53,7 @@ COUNTRY_TOP_10 <- read_tsv(COUNTRY_TOP_10_FILENAME, na=c("N/A"))
 
 ```
 
-* Netflix operate in **94** different countries.
+* Netflix operates in **94** different countries.
 ```{r}
 num_countries <- COUNTRY_TOP_10 %>% distinct(country_name) %>% count()
 ```
@@ -71,6 +72,12 @@ longest_film <- GLOBAL_TOP_10 |> select(show_title, category, runtime) |>
   filter(category == "Films (Non-English)" | category == "Films (English)")|> 
   mutate(runtime_mins = round(runtime * 60)) |> arrange(desc(runtime_mins)) |> 
   distinct(show_title, category, runtime, runtime_mins) 
+
+longest_film |> 
+    head(n=5) |>
+    datatable(options=list(searching=FALSE, info=FALSE)) |> 
+  formatStyle(columns = names(longest_film),
+              color ='white')
 ```
 
 * Of the four categories of Netflix's Global Top 10, *TV (English)* has the most total hours of global viewership with a staggering **66,060,030,000** weekly hours viewed since 2021.
@@ -80,19 +87,35 @@ total_weekly_viewers <- GLOBAL_TOP_10 %>% group_by(category) %>%
 ```
 
 * *Money Heist* had the longest run in a country's Top 10 with **127** consecutive weeks in the top 10 in **Pakistan**.
+
 ```{r}
 tv_tops <- COUNTRY_TOP_10 |> 
   select(category, show_title, cumulative_weeks_in_top_10,country_name) |> 
   filter(category == "TV") |> distinct(show_title, country_name, .keep_all = TRUE) |>
   arrange(desc(cumulative_weeks_in_top_10))
+
+tv_tops |> 
+    head(n=5) |>
+    datatable(options=list(searching=FALSE, info=FALSE)) |> 
+  formatStyle(columns = names(tv_tops),
+              color ='white')
 ```
 
-* Netflix provides over 200 weeks of service history for all but one country in our data set. Which country is this and when did Netflix cease operations in that country?
+* Throughout 2021 to 2025, only **Russia** has less than 200 weeks of service with only **35** weeks.
 
 ```{r}
-#need to do
+
+country_removed <- COUNTRY_TOP_10 |> group_by(country_name) |> summarise(num_weeks = n_distinct(week)) |> arrange(num_weeks)
+
+country_removed |> 
+    head(n=3) |>
+    datatable(options=list(searching=FALSE, info=FALSE)) |> 
+  formatStyle(columns = names(country_removed),
+              color ='white')
+
+
 ```
-* The total viewership for the TV show *Squid Game* from Season 1 to Season 3 in hours is **5,048,300,000** hours.
+* The total viewership for the TV show *Squid Game* from Season 1 to Season 3 is **5,048,300,000** hours.
 ```{r}
 tot_hrs_squgame <- GLOBAL_TOP_10 |> 
   select(season_title, weekly_hours_viewed) |> 
@@ -130,18 +153,18 @@ us_tops <- us_films %>% group_by(show_title) %>%
   filter(hit_no1, debut_rank != 1) %>% 
   select(show_title, debut_rank, first_hit_week) |> 
   arrange(desc(first_hit_week))
+
+us_tops |> 
+    head(n=5) |>
+    datatable(options=list(searching=FALSE, info=FALSE)) |> 
+  formatStyle(columns = names(us_tops),
+              color ='white')
 ```
 
-* There are **7** TV shows tied that hit top 10 in the most countries during its debut week with **94** countries. They are 
-  * All of Us Are Dead
-  * Emily in Paris
-  * Inventing Anna
-  * Sex Education
-  * Squid Game
-  * The Witcher
-  * You
-  
+* There are **7** TV shows tied that hit top 10 in the most countries during its debut week with **94** countries. 
+
 ```{r message=FALSE, warning=FALSE}
+
 debut <- COUNTRY_TOP_10 %>% filter(category =="TV") %>% 
   group_by(show_title, country_name) %>% 
   summarise(debut_week = min(week), 
@@ -151,8 +174,38 @@ debut <- COUNTRY_TOP_10 %>% filter(category =="TV") %>%
   summarise(countries_in_top_10 = n_distinct(country_name), 
             .groups= "drop") %>% 
   arrange(desc(countries_in_top_10))
+
+
+debut |> 
+    head(n=10) |>
+    datatable(options=list(searching=FALSE, info=FALSE)) |> 
+  formatStyle(columns = names(debut),
+              color ='white')
 ```
 
+# 2 ENDGAME IN THE UPSIDE DOWN: STRANGER THINGS 5 BREAKS NEW GROUND
+
+Netflix's cultural phenomenon, *Stranger Things*, will unveil their fifth and final season on November 26. Since its debut in 2016, *Stranger Things* has captivated and garnered a worldwide audience, jumpstarting the trajectory of many Netflix original series.
+
+
+Throughout it's 4 season history, *Stranger Things* has amassed **423,997,143** daily viewers.
+```{r message=FALSE, warning=FALSE}
+GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title =='Stranger Things') |> 
+  group_by(show_title) |> summarise(total_weekly_hrs_stranger_things = sum(weekly_hours_viewed)) |> mutate(daily_hours_viewed = total_weekly_hrs_stranger_things / 7)
+```
+
+As mentioned in our Fun Facts, Netflix operates in **94** different countries. Out of the **94** countries, *Stranger Things* have been in the  top 10 for **93** of them with an average of **13** consecutive weeks in the top 10.
+```{r message=FALSE, warning=FALSE}
+num_countries_top10 <- COUNTRY_TOP_10 |> select(country_name, show_title, cumulative_weeks_in_top_10) |> 
+  filter(show_title =='Stranger Things') |> group_by(country_name) |> summarise(num_countries = n_distinct(cumulative_weeks_in_top_10))
+
+weekly_consecutive_top10_avg <- sum(num_countries_top10$num_countries) / 93
+
+num_countries_top10 |> 
+    datatable(options=list(paging=TRUE, searching=FALSE, info=FALSE)) |> 
+  formatStyle(columns = names(num_countries_top10),
+              color ='white')
+```
 ```{r}
 #| include: false
 1+1
