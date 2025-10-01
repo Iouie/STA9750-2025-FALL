@@ -185,16 +185,18 @@ debut |>
 
 # 2 ENDGAME IN THE UPSIDE DOWN: STRANGER THINGS 5 BREAKS NEW GROUND
 
-Netflix's cultural phenomenon, *Stranger Things*, will unveil their fifth and final season on November 26. Since its debut in 2016, *Stranger Things* has captivated and garnered a worldwide audience, jumpstarting the trajectory of many Netflix original series.
+Netflix's cultural phenomenon, *Stranger Things*, will unveil their fifth and final season on November 26. Since its debut in 2016, *Stranger Things* has captivated and garnered a worldwide audience, jump starting the trajectory of many Netflix original series.
 
 
 Throughout it's 4 season history, *Stranger Things* has amassed **423,997,143** daily viewers.
 ```{r message=FALSE, warning=FALSE}
 GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title =='Stranger Things') |> 
-  group_by(show_title) |> summarise(total_weekly_hrs_stranger_things = sum(weekly_hours_viewed)) |> mutate(daily_hours_viewed = total_weekly_hrs_stranger_things / 7)
+  group_by(show_title) |> summarise(total_weekly_hrs_stranger_things = sum(weekly_hours_viewed)) |>
+  mutate(daily_hours_viewed = 
+           total_weekly_hrs_stranger_things / 7)
 ```
 
-As mentioned in our Fun Facts, Netflix operates in **94** different countries. Out of the **94** countries, *Stranger Things* have been in the  top 10 for **93** of them with an average of **13** consecutive weeks in the top 10.
+As mentioned in the Fun Facts, Netflix operates in **94** different countries. Out of the **94** countries, *Stranger Things* have been in the  top 10 for **93** of them with an average of **13** consecutive weeks in the top 10.
 ```{r message=FALSE, warning=FALSE}
 num_countries_top10 <- COUNTRY_TOP_10 |> select(country_name, show_title, cumulative_weeks_in_top_10) |> 
   filter(show_title =='Stranger Things') |> group_by(country_name) |> summarise(num_countries = n_distinct(cumulative_weeks_in_top_10))
@@ -205,6 +207,17 @@ num_countries_top10 |>
     datatable(options=list(paging=TRUE, searching=FALSE, info=FALSE)) |> 
   formatStyle(columns = names(num_countries_top10),
               color ='white')
+```
+Comparing *Stranger Things* to the **7** TV shows that hit top 10 during its debut week in **94** different countries, *Stranger Things* has triple the amount the of the next highest total weekly hour views.
+```{r warning=FALSE, message=FALSE}
+
+library(ggplot2)
+library(scales)
+
+get_7_of_top10_debuts <- GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title == "All of Us Are Dead" | show_title == "Emily in Paris"| show_title =="Inventing Anna" | show_title == "Sex Education" | show_title == "Squid Game" | show_title =="The Witcher" | show_title == "You") |> group_by(show_title) |> summarise(total_weekly_hours = sum(weekly_hours_viewed))
+
+ggplot(get_7_of_top10_debuts, aes(x = reorder(show_title, -total_weekly_hours), y = total_weekly_hours)) + geom_col(fill = "steelblue") + labs(title = "Total Weekly Hour Views",x = "Show Title", y = "Total Hours Viewed") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()))
+
 ```
 ```{r}
 #| include: false
