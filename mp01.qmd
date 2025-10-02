@@ -8,11 +8,11 @@ format:
     code-fold: true
     
 ---
-# 1 SUMMARY
+# 1) SUMMARY
 
 Netflix has been investing heavily in original TV series and film content with the main purpose of attracting a worldwide audience. Netflix is trying to put out a series of press releases highlighting their recent successes. The data analyzes the most popular Netflix films and TV shows between 2021 and 2025 in countries where Netflix is available and globally throughout the world.
 
-## 1.1 FUN FACTS
+## 1.1) FUN FACTS
 
 We are gathering the data from [Netflix's TumDum Top 10]([https://www.netflix.com/tudum/top10]) which consists of
 
@@ -183,9 +183,9 @@ debut |>
               color ='white')
 ```
 
-# 2 ENDGAME IN THE UPSIDE DOWN: STRANGER THINGS 5 BREAKS NEW GROUND
+# 2) ENDGAME IN THE UPSIDE DOWN: STRANGER THINGS 5 BREAKS NEW GROUND
 
-Netflix's cultural phenomenon, *Stranger Things*, will unveil their fifth and final season on November 26. Since its debut in 2016, *Stranger Things* has captivated and garnered a worldwide audience, jump starting the trajectory of many Netflix original series.
+Netflix's cultural phenomenon, *Stranger Things*, will unveil their fifth and final season on November 26. Since its debut in 2016, *Stranger Things* has captivated and garnered a worldwide audience, jump starting the trajectory of many Netflix original series that we know and love today. From the Upside Down to the Overworld, there will definitely been a world where **Stranger Things** will reclaim its throne.
 
 
 Throughout it's 4 season history, *Stranger Things* has amassed **423,997,143** daily viewers.
@@ -208,16 +208,49 @@ num_countries_top10 |>
   formatStyle(columns = names(num_countries_top10),
               color ='white')
 ```
-Comparing *Stranger Things* to the **7** TV shows that hit top 10 during its debut week in **94** different countries, *Stranger Things* has triple the amount the of the next highest total weekly hour views.
+
+Comparing *Stranger Things* to the **7** TV shows that hit top 10 during its debut week in **94** different countries, *Stranger Things* ranks as the 2nd highest total weekly hours only behind the cultural phenomenon **Squid Game**, not bad for a show that has debut nearly 10 years ago.
 ```{r warning=FALSE, message=FALSE}
 
 library(ggplot2)
 library(scales)
 
-get_7_of_top10_debuts <- GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title == "All of Us Are Dead" | show_title == "Emily in Paris"| show_title =="Inventing Anna" | show_title == "Sex Education" | show_title == "Squid Game" | show_title =="The Witcher" | show_title == "You") |> group_by(show_title) |> summarise(total_weekly_hours = sum(weekly_hours_viewed))
+get_7_of_top10_debuts <- GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title == "Stranger Things" | show_title == "All of Us Are Dead" | show_title == "Emily in Paris"| show_title =="Inventing Anna" | show_title == "Sex Education" | show_title == "Squid Game" | show_title =="The Witcher" | show_title == "You") |> group_by(show_title) |> summarise(total_weekly_hours = sum(weekly_hours_viewed))
 
-ggplot(get_7_of_top10_debuts, aes(x = reorder(show_title, -total_weekly_hours), y = total_weekly_hours)) + geom_col(fill = "steelblue") + labs(title = "Total Weekly Hour Views",x = "Show Title", y = "Total Hours Viewed") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()))
+ggplot(get_7_of_top10_debuts, aes(x = reorder(show_title, -total_weekly_hours), y = total_weekly_hours)) + geom_col(fill = "#375b7f") + labs(title = "Total Weekly Hour Views",x = "Show Title", y = "Total Hours Viewed") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()))
 
+```
+
+# 3) FROM BOLLYWOOD TO BLOCKBUSTERS: INDIA IS ON THE RISE
+
+India is starting to become one of the big players in the market. Hindi films have started to make strides and hitting top weekly charts. The Hindi film *RRR (Hindi)* been in the top 10 cumulatively for **18** weeks. The show itself have a weekly hour view of **79,780,000**. Don't sleep on the other films either! All Hindi films that have appeared in Netflix's top 10 total up to **183,000,000** weekly hours viewed.
+
+```{r}
+top_hindi_films <- GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> 
+  filter(str_detect(show_title, "Hindi")) |> 
+  group_by(show_title) |> 
+  summarise(total_wkly_hrs = sum(weekly_hours_viewed)) |>
+  slice_max(total_wkly_hrs, n = 5)
+
+ggplot(top_hindi_films, aes(x= reorder(show_title, total_wkly_hrs), y=total_wkly_hrs)) +
+  geom_col(fill = "#375b7f") +
+  coord_flip() +
+  labs(x ="Hindi Shows", y = "Weekly Hours Viewed", title = "Top Hindi Shows")+
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()))
+
+```
+
+```{r}
+highest_cum_wks <- GLOBAL_TOP_10 %>% 
+  filter(str_detect(show_title, "Hindi")) |> 
+  group_by(show_title) |> 
+  slice_max(cumulative_weeks_in_top_10, n=1) %>% ungroup() %>%
+  arrange(desc(cumulative_weeks_in_top_10)) %>%
+  slice_head(n = 5)
+
+ggplot(highest_cum_wks, aes(x= reorder(show_title, -cumulative_weeks_in_top_10), y=cumulative_weeks_in_top_10)) +
+  geom_col(fill = "#375b7f") +
+  labs(x ="Hindi Shows", y = "Cumulative Weeks in Top 10", title = "Top Hindi Shows")
 ```
 ```{r}
 #| include: false
