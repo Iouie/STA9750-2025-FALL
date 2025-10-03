@@ -8,19 +8,29 @@ format:
     code-fold: true
     
 ---
+![](assets/netflix_pic.jpg){width="100%"}  
+
 # 1) SUMMARY
 
 Netflix has been investing heavily in original TV series and film content with the main purpose of attracting a worldwide audience. Netflix is trying to put out a series of press releases highlighting their recent successes. The data analyzes the most popular Netflix films and TV shows between 2021 and 2025 in countries where Netflix is available and globally throughout the world.
 
-## 1.1) FUN FACTS
 
-We are gathering the data from [Netflix's TumDum Top 10]([https://www.netflix.com/tudum/top10]) which consists of
+# 2) DATA EXPLORATION
 
-* Global Top 10
-
-* Country-wide Top 10
+We are gathering the data from [Netflix's TumDum Top 10]([https://www.netflix.com/tudum/top10]), and cleaning it.
 
 ```{r, message=FALSE, warning=FALSE, results='hide'}
+library(readr)
+library(dplyr)
+library(stringr)
+library(DT)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(ggplot2)
+
+options(repos = c(CRAN = "https://cran.rstudio.com"))
+install.packages(c("ggplot2", "dplyr", "readr", "rnaturalearth", "rnaturalearthdata"))
+
 if(!dir.exists(file.path("data", "mp01"))){
     dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
 }
@@ -32,22 +42,12 @@ if(!file.exists(GLOBAL_TOP_10_FILENAME)){
                   destfile=GLOBAL_TOP_10_FILENAME)
 }
 
-options(repos = c(CRAN = "https://cran.rstudio.com"))
-install.packages(c("ggplot2", "dplyr", "readr", "rnaturalearth", "rnaturalearthdata"))
-
 COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
 
 if(!file.exists(COUNTRY_TOP_10_FILENAME)){
     download.file("https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv", 
                   destfile=COUNTRY_TOP_10_FILENAME)
 }
-library(readr)
-library(dplyr)
-library(stringr)
-library(DT)
-library(rnaturalearth)
-library(rnaturalearthdata)
-library(ggplot2)
 
 COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
 
@@ -59,19 +59,20 @@ COUNTRY_TOP_10 <- read_tsv(COUNTRY_TOP_10_FILENAME, na=c("N/A"))
 
 ```
 
+3) FUN FACTS
 * Netflix operates in **94** different countries.
 ```{r}
 num_countries <- COUNTRY_TOP_10 %>% distinct(country_name) %>% count()
 ```
 
-* Of all the non-english Netflix films, *All Quiet on the Western Front* spent **23** consecutive weeks in the global top 10.
+* Of all the non-english Netflix films, *All Quiet on the Western Front* ranks number one with **23** consecutive weeks in the global top 10.
 ```{r message=FALSE, warning=FALSE}
 non_engtop10 <- GLOBAL_TOP_10 |> select(category, show_title, cumulative_weeks_in_top_10) |> 
   filter(category == "Films (Non-English)") |> 
   arrange(desc(cumulative_weeks_in_top_10))
 ```
 
-* The longest film to have ever appeared in Netflix global Top 10 is *Pushpa P: The Rule (Reloaded Version)* which lasts for **224** minutes.
+* The longest film to have ever appeared in Netflix global Top 10 is *Pushpa P: The Rule (Reloaded Version)* which has a runtime of **224** minutes.
 
 ```{r}
 longest_film <- GLOBAL_TOP_10 |> select(show_title, category, runtime) |> 
@@ -86,13 +87,13 @@ longest_film |>
               color ='white')
 ```
 
-* Of the four categories of Netflix's Global Top 10, *TV (English)* has the most total hours of global viewership with a staggering **66,060,030,000** weekly hours viewed since 2021.
+* Of the four categories of Netflix's Global Top 10, *TV (English)* has the most total hours of global viewership with a staggering **66,060,030,000** weekly hour views.
 ```{r}
 total_weekly_viewers <- GLOBAL_TOP_10 %>% group_by(category) %>% 
   summarise(total = sum(weekly_hours_viewed)) %>% arrange(desc(total))
 ```
 
-* *Money Heist* had the longest run in a country's Top 10 with **127** consecutive weeks in the top 10 in **Pakistan**.
+* *Money Heist* has the longest run in a country's Top 10 with **127** consecutive weeks in **Pakistan**.
 
 ```{r}
 tv_tops <- COUNTRY_TOP_10 |> 
@@ -107,7 +108,7 @@ tv_tops |>
               color ='white')
 ```
 
-* Throughout 2021 to 2025, only **Russia** has less than 200 weeks of service with only **35** weeks.
+* Throughout 2021 to 2025, only **Russia** has less than 200 weeks of service with only **35** weeks of data.
 
 ```{r}
 
@@ -193,10 +194,12 @@ debut |>
 
 # 2) ENDGAME IN THE UPSIDE DOWN: STRANGER THINGS 5 BREAKS NEW GROUND
 
-Netflix's cultural phenomenon, *Stranger Things*, will unveil their fifth and final season on November 26. Since its debut in 2016, *Stranger Things* has captivated and garnered a worldwide audience, jump starting the trajectory of many Netflix original series that we know and love today. From the Upside Down to the Overworld, there will definitely been a world where **Stranger Things** will reclaim its throne.
+![Stranger Things 5](assets/strangerthings5.jpg){width="100%"}
+
+Netflix's cultural phenomenon, *Stranger Things*, will unveil their fifth and final season on November 26. Since its debut in 2016, *Stranger Things* has captivated and garnered a worldwide audience, jump starting the trajectory of many Netflix original series that we know and love today. From the Upside Down to the Overworld, there will be a world where **Stranger Things** will reclaim its throne as Netflix's most popular TV show.
 
 
-Throughout it's 4 season history, *Stranger Things* has amassed **423,997,143** daily viewers.
+Throughout it's 4 seasons, *Stranger Things* has amassed **423,997,143** daily viewers.
 ```{r message=FALSE, warning=FALSE}
 GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title =='Stranger Things') |> 
   group_by(show_title) |> summarise(total_weekly_hrs_stranger_things = sum(weekly_hours_viewed)) |>
@@ -204,9 +207,10 @@ GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title ==
            total_weekly_hrs_stranger_things / 7)
 ```
 
-As mentioned in the Fun Facts, Netflix operates in **94** different countries. Out of the **94** countries, *Stranger Things* have been in the  top 10 for **93** of them with an average of **13** consecutive weeks in the top 10.
+Out of the **94** countries that Netflix operates in, *Stranger Things* have been in the top 10 for **93** of them with an average of **13** consecutive weeks in the top 10.
 ```{r message=FALSE, warning=FALSE}
-num_countries_top10 <- COUNTRY_TOP_10 |> select(country_name, show_title, cumulative_weeks_in_top_10) |> 
+num_countries_top10 <- COUNTRY_TOP_10 |> 
+  select(country_name, show_title, cumulative_weeks_in_top_10) |> 
   filter(show_title =='Stranger Things') |> 
   group_by(country_name) |> 
   summarise(num_countries = n_distinct(cumulative_weeks_in_top_10))
@@ -219,7 +223,7 @@ num_countries_top10 |>
               color ='white')
 ```
 
-Comparing *Stranger Things* to the **7** TV shows that hit top 10 during its debut week in **94** different countries, *Stranger Things* ranks as the 2nd highest total weekly hours only behind the cultural phenomenon **Squid Game**, not bad for a show that has debut nearly 10 years ago.
+Comparing *Stranger Things* to the **7** TV shows that hit top 10 during its debut week in **94** different countries, *Stranger Things* ranks as the **2nd highest total weekly hours** only behind the cultural phenomenon **Squid Game**. Nearly a decade after its debut, *Stranger Things* continue to prove its staying power and relevance in the ever changing landscape of TV shows. As the series heads toward its conclusion,  its continued dominance among the most-watched shows reaffirm its legacy as one of Netflix's defining franchises.
 ```{r warning=FALSE, message=FALSE}
 
 library(ggplot2)
@@ -238,15 +242,20 @@ get_7_of_top10_debuts <- GLOBAL_TOP_10 |>
   group_by(show_title) |> 
   summarise(total_weekly_hours = sum(weekly_hours_viewed))
 
-ggplot(get_7_of_top10_debuts, aes(x = reorder(show_title, -total_weekly_hours), y = total_weekly_hours)) + 
+ggplot(get_7_of_top10_debuts, aes(x = reorder(show_title, -total_weekly_hours), 
+                                  y = total_weekly_hours)) + 
   geom_col(fill = "#375b7f") + 
-  labs(title = "Total Weekly Hour Views",x = "Show Title", y = "Total Hours Viewed") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()))
+  labs(title = "Total Weekly Hour Views",x = "Show Title", 
+       y = "Total Hours Viewed") + theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()))
 
 ```
 
 # 3) FROM BOLLYWOOD TO BLOCKBUSTERS: INDIA IS ON THE RISE
+![Netflix India](assets/netflix_india.jpeg){width="100%"}
 
-India is starting to become one of the big players in the market. Hindi films have started to make strides and hitting top weekly charts. The Hindi film *RRR (Hindi)* been in the top 10 cumulatively for **18** weeks. The show itself have a weekly hour view of **79,780,000**. Don't sleep on the other films either! All Hindi films that have appeared in Netflix's top 10 total up to **183,000,000** weekly hours viewed.
+India is starting to become one of the big players in the market. Hindi films have started to make strides and hitting top weekly charts. The Hindi film *RRR (Hindi)* has been in the top 10 cumulatively for **18** weeks. The show has a weekly hour view of **79,780,000**. Don't sleep on the other films either! All Hindi films that have appeared in Netflix's top 10 total up to **183,000,000** weekly hours viewed.
 
 ```{r}
 top_hindi_films <- GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> 
@@ -271,14 +280,16 @@ highest_cum_wks <- GLOBAL_TOP_10 %>%
   arrange(desc(cumulative_weeks_in_top_10)) %>%
   slice_head(n = 5)
 
-ggplot(highest_cum_wks, aes(x= reorder(show_title, -cumulative_weeks_in_top_10), y=cumulative_weeks_in_top_10)) +
+ggplot(highest_cum_wks, aes(x= reorder(show_title, -cumulative_weeks_in_top_10), 
+                            y=cumulative_weeks_in_top_10)) +
   geom_col(fill = "#375b7f") +
   labs(x ="Hindi Shows", y = "Cumulative Weeks in Top 10", title = "Top Hindi Shows")
 ```
 
 # 4) WWE AND NETFLIX TAG TEAM TO BRING WRESTLING FANS UNMATCHED ACCESS
+![Netflix WWE](assets/netflix_wwe.jpg){width="100%"}
 
-For more than 70 years, *WWE* has been the heart and soul of sports entertainment, spanning across generations, developing iconic superstars, and generating legendary and unforgettable moments watched by millions across the globe. On January 6, 2025, *WWE* will officially be streamed live on Netflix. WWE fans will now be able to stream shows at anywhere, anytime, and on any device. Thousands of new audiences have already flocked in to watch *WWE*'s special Pay-Per-Views resulting in *WWE* getting into the weekly top 10 in **42** different countries!
+For over 70 years, *WWE* has been the heart and soul of sports entertainment, spanning across generations, developing iconic superstars, and generating legendary and unforgettable moments watched by millions across the globe. On January 6, 2025, *WWE* will officially be streamed live on Netflix. WWE fans will now be able to stream shows at anywhere, anytime, and on any device. Thousands of new audiences have already flocked in to watch *WWE*'s special Pay-Per-Views resulting in *WWE* getting into the weekly top 10 in **42** different countries!
 ```{r, fig.width=12, fig.height=8, warning=FALSE, message=FALSE}
 wwe_tv <- COUNTRY_TOP_10 %>% filter(str_detect(show_title, "WWE"))
 
@@ -296,7 +307,7 @@ ggplot(world_map) +
   theme_minimal() +
   guides(fill = "none")
 ```
-In the map above, we can see that *WWE* has a strong presence in North America, South America, Europe, and parts of Asia. However, there are still many countries in Africa and the Middle East that have yet to embrace the thrill of *WWE*. With Netflix's global reach, *WWE* has the potential to expand its audience and bring the excitement of wrestling to new regions. Speaking of regions, the graph below shows the number of times a WWE show has hit the top 10. It's not surprising that the 2 biggest events, *WrestleMania* and *SummerSlam*, are the most popular show.
+In the map above, we can see that *WWE* has a strong presence in North America, South America, Europe, and parts of Asia. However, there are still many countries in Africa and the Middle East that have yet to embrace the thrill of *WWE*. With Netflix's global reach, *WWE* has the potential to expand its audience and bring the excitement of wrestling to new regions. Speaking of regions, the graph below shows the number of times a WWE show has hit the weekly top 10. It's not surprising that the 2 biggest events, *WrestleMania* and *SummerSlam*, are the most popular show.
 ```{r}
 country_count <- wwe_tv %>%
   group_by(show_title) %>%
