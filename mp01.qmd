@@ -59,7 +59,7 @@ COUNTRY_TOP_10 <- read_tsv(COUNTRY_TOP_10_FILENAME, na=c("N/A"))
 
 ```
 
-3) FUN FACTS
+# 3) FUN FACTS
 * Netflix operates in **94** different countries.
 ```{r}
 num_countries <- COUNTRY_TOP_10 %>% distinct(country_name) %>% count()
@@ -192,7 +192,7 @@ debut |>
               color ='white')
 ```
 
-# 2) ENDGAME IN THE UPSIDE DOWN: STRANGER THINGS 5 BREAKS NEW GROUND
+# 4) ENDGAME IN THE UPSIDE DOWN: STRANGER THINGS 5 BREAKS NEW GROUND
 
 ![Stranger Things 5](assets/strangerthings5.jpg){width="100%"}
 
@@ -252,7 +252,7 @@ ggplot(get_7_of_top10_debuts, aes(x = reorder(show_title, -total_weekly_hours),
 
 ```
 
-# 3) FROM BOLLYWOOD TO BLOCKBUSTERS: INDIA IS ON THE RISE
+# 5) FROM BOLLYWOOD TO BLOCKBUSTERS: INDIA IS ON THE RISE
 ![Netflix India](assets/netflix_india.jpeg){width="100%"}
 
 India is starting to become one of the big players in the market. Hindi films have started to make strides and hitting top weekly charts. The Hindi film *RRR (Hindi)* has been in the top 10 cumulatively for **18** weeks. The show has a weekly hour view of **79,780,000**. Don't sleep on the other films either! All Hindi films that have appeared in Netflix's top 10 total up to **183,000,000** weekly hours viewed.
@@ -286,7 +286,7 @@ ggplot(highest_cum_wks, aes(x= reorder(show_title, -cumulative_weeks_in_top_10),
   labs(x ="Hindi Shows", y = "Cumulative Weeks in Top 10", title = "Top Hindi Shows")
 ```
 
-# 4) WWE AND NETFLIX TAG TEAM TO BRING WRESTLING FANS UNMATCHED ACCESS
+# 6) WWE AND NETFLIX TAG TEAM TO BRING WRESTLING FANS UNMATCHED ACCESS
 ![Netflix WWE](assets/netflix_wwe.jpg){width="100%"}
 
 For over 70 years, *WWE* has been the heart and soul of sports entertainment, spanning across generations, developing iconic superstars, and generating legendary and unforgettable moments watched by millions across the globe. On January 6, 2025, *WWE* will officially be streamed live on Netflix. WWE fans will now be able to stream shows at anywhere, anytime, and on any device. Thousands of new audiences have already flocked in to watch *WWE*'s special Pay-Per-Views resulting in *WWE* getting into the weekly top 10 in **42** different countries!
