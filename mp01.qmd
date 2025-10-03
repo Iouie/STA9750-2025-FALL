@@ -20,7 +20,7 @@ We are gathering the data from [Netflix's TumDum Top 10]([https://www.netflix.co
 
 * Country-wide Top 10
 
-```{r message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 if(!dir.exists(file.path("data", "mp01"))){
     dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
 }
@@ -32,6 +32,9 @@ if(!file.exists(GLOBAL_TOP_10_FILENAME)){
                   destfile=GLOBAL_TOP_10_FILENAME)
 }
 
+options(repos = c(CRAN = "https://cran.rstudio.com"))
+install.packages(c("ggplot2", "dplyr", "readr", "rnaturalearth", "rnaturalearthdata"))
+
 COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
 
 if(!file.exists(COUNTRY_TOP_10_FILENAME)){
@@ -42,6 +45,9 @@ library(readr)
 library(dplyr)
 library(stringr)
 library(DT)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(ggplot2)
 
 COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
 
@@ -105,7 +111,9 @@ tv_tops |>
 
 ```{r}
 
-country_removed <- COUNTRY_TOP_10 |> group_by(country_name) |> summarise(num_weeks = n_distinct(week)) |> arrange(num_weeks)
+country_removed <- COUNTRY_TOP_10 |> group_by(country_name) |> 
+  summarise(num_weeks = n_distinct(week)) |> 
+  arrange(num_weeks)
 
 country_removed |> 
     head(n=3) |>
@@ -199,7 +207,9 @@ GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title ==
 As mentioned in the Fun Facts, Netflix operates in **94** different countries. Out of the **94** countries, *Stranger Things* have been in the  top 10 for **93** of them with an average of **13** consecutive weeks in the top 10.
 ```{r message=FALSE, warning=FALSE}
 num_countries_top10 <- COUNTRY_TOP_10 |> select(country_name, show_title, cumulative_weeks_in_top_10) |> 
-  filter(show_title =='Stranger Things') |> group_by(country_name) |> summarise(num_countries = n_distinct(cumulative_weeks_in_top_10))
+  filter(show_title =='Stranger Things') |> 
+  group_by(country_name) |> 
+  summarise(num_countries = n_distinct(cumulative_weeks_in_top_10))
 
 weekly_consecutive_top10_avg <- sum(num_countries_top10$num_countries) / 93
 
@@ -215,9 +225,22 @@ Comparing *Stranger Things* to the **7** TV shows that hit top 10 during its deb
 library(ggplot2)
 library(scales)
 
-get_7_of_top10_debuts <- GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title == "Stranger Things" | show_title == "All of Us Are Dead" | show_title == "Emily in Paris"| show_title =="Inventing Anna" | show_title == "Sex Education" | show_title == "Squid Game" | show_title =="The Witcher" | show_title == "You") |> group_by(show_title) |> summarise(total_weekly_hours = sum(weekly_hours_viewed))
+get_7_of_top10_debuts <- GLOBAL_TOP_10 |> 
+  select(show_title, weekly_hours_viewed) |> 
+  filter(show_title == "Stranger Things" | 
+           show_title == "All of Us Are Dead" | 
+           show_title == "Emily in Paris"| 
+           show_title =="Inventing Anna" | 
+           show_title == "Sex Education" | 
+           show_title == "Squid Game" | 
+           show_title =="The Witcher" | 
+           show_title == "You") |> 
+  group_by(show_title) |> 
+  summarise(total_weekly_hours = sum(weekly_hours_viewed))
 
-ggplot(get_7_of_top10_debuts, aes(x = reorder(show_title, -total_weekly_hours), y = total_weekly_hours)) + geom_col(fill = "#375b7f") + labs(title = "Total Weekly Hour Views",x = "Show Title", y = "Total Hours Viewed") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()))
+ggplot(get_7_of_top10_debuts, aes(x = reorder(show_title, -total_weekly_hours), y = total_weekly_hours)) + 
+  geom_col(fill = "#375b7f") + 
+  labs(title = "Total Weekly Hour Views",x = "Show Title", y = "Total Hours Viewed") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()))
 
 ```
 
@@ -252,6 +275,39 @@ ggplot(highest_cum_wks, aes(x= reorder(show_title, -cumulative_weeks_in_top_10),
   geom_col(fill = "#375b7f") +
   labs(x ="Hindi Shows", y = "Cumulative Weeks in Top 10", title = "Top Hindi Shows")
 ```
+
+# 4) WWE AND NETFLIX TAG TEAM TO BRING WRESTLING FANS UNMATCHED ACCESS
+
+For more than 70 years, *WWE* has been the heart and soul of sports entertainment, spanning across generations, developing iconic superstars, and generating legendary and unforgettable moments watched by millions across the globe. On January 6, 2025, *WWE* will officially be streamed live on Netflix. WWE fans will now be able to stream shows at anywhere, anytime, and on any device. Thousands of new audiences have already flocked in to watch *WWE*'s special Pay-Per-Views resulting in *WWE* getting into the weekly top 10 in **42** different countries!
+```{r, fig.width=12, fig.height=8, warning=FALSE, message=FALSE}
+wwe_tv <- COUNTRY_TOP_10 %>% filter(str_detect(show_title, "WWE"))
+
+#get count of unique countries
+wwe_tv %>% summarise(unique_count = n_distinct(country_name))
+
+world_map <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
+
+world_map <- world_map %>%
+  mutate(highlight = admin %in% wwe_tv$country_name)
+
+ggplot(world_map) +
+  geom_sf(aes(fill = highlight), color = "grey80") +
+  scale_fill_manual(values = c("TRUE" = "red", "FALSE" = "black")) +
+  theme_minimal() +
+  guides(fill = "none")
+```
+In the map above, we can see that *WWE* has a strong presence in North America, South America, Europe, and parts of Asia. However, there are still many countries in Africa and the Middle East that have yet to embrace the thrill of *WWE*. With Netflix's global reach, *WWE* has the potential to expand its audience and bring the excitement of wrestling to new regions. Speaking of regions, the graph below shows the number of times a WWE show has hit the top 10. It's not surprising that the 2 biggest events, *WrestleMania* and *SummerSlam*, are the most popular show.
+```{r}
+country_count <- wwe_tv %>%
+  group_by(show_title) %>%
+  summarise(num_countries = n_distinct(country_name))
+
+ggplot(country_count, aes(x= reorder(show_title, num_countries), y=num_countries)) +
+  geom_col(fill = "#375b7f") +
+  coord_flip() +
+  labs(x ="WWE Shows", y = "# of Countries that WWE Hit Top 10", title = "WWE Popularity")
+```
+
 ```{r}
 #| include: false
 1+1
