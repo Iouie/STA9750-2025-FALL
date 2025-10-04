@@ -20,6 +20,11 @@ Netflix has been investing heavily in original TV series and film content with t
 We are gathering the data from [Netflix's TumDum Top 10]([https://www.netflix.com/tudum/top10]), and cleaning it.
 
 ```{r, message=FALSE, warning=FALSE, results='hide'}
+
+options(repos = c(CRAN = "https://cran.rstudio.com"))
+install.packages(c("ggplot2", "dplyr", "readr", "rnaturalearth", "rnaturalearthdata"))
+
+
 library(readr)
 library(dplyr)
 library(stringr)
@@ -28,8 +33,6 @@ library(rnaturalearth)
 library(rnaturalearthdata)
 library(ggplot2)
 
-options(repos = c(CRAN = "https://cran.rstudio.com"))
-install.packages(c("ggplot2", "dplyr", "readr", "rnaturalearth", "rnaturalearthdata"))
 
 if(!dir.exists(file.path("data", "mp01"))){
     dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
