@@ -32,6 +32,7 @@ library(DT)
 library(rnaturalearth)
 library(rnaturalearthdata)
 library(ggplot2)
+library(scales)
 
 
 if(!dir.exists(file.path("data", "mp01"))){
@@ -229,9 +230,6 @@ num_countries_top10 |>
 Comparing *Stranger Things* to the **7** TV shows that hit top 10 during its debut week in **94** different countries, *Stranger Things* ranks as the **2nd highest total weekly hours** only behind the cultural phenomenon **Squid Game**. Nearly a decade after its debut, *Stranger Things* continue to prove its staying power and relevance in the ever changing landscape of TV shows. As the series heads toward its conclusion,  its continued dominance among the most-watched shows reaffirm its legacy as one of Netflix's defining franchises.
 ```{r warning=FALSE, message=FALSE}
 
-library(ggplot2)
-library(scales)
-
 get_7_of_top10_debuts <- GLOBAL_TOP_10 |> 
   select(show_title, weekly_hours_viewed) |> 
   filter(show_title == "Stranger Things" | 
@@ -252,13 +250,14 @@ ggplot(get_7_of_top10_debuts, aes(x = reorder(show_title, -total_weekly_hours),
        y = "Total Hours Viewed") + theme_minimal() + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
   scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()))
-
 ```
 
 # 5) FROM BOLLYWOOD TO BLOCKBUSTERS: INDIA IS ON THE RISE
 ![Netflix India](assets/netflix_india.jpeg){width="100%"}
 
 India is starting to become one of the big players in the market. Hindi films have started to make strides and hitting top weekly charts. The Hindi film *RRR (Hindi)* has been in the top 10 cumulatively for **18** weeks. The show has a weekly hour view of **79,780,000**. Don't sleep on the other films either! All Hindi films that have appeared in Netflix's top 10 total up to **183,000,000** weekly hours viewed.
+
+[](docs/mp01_files/figure-html/unnamed-chunk-15-1.png)
 
 ```{r}
 top_hindi_films <- GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> 
@@ -274,7 +273,7 @@ ggplot(top_hindi_films, aes(x= reorder(show_title, total_wkly_hrs), y=total_wkly
   scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()))
 
 ```
-
+[](docs/mp01_files/figure-html/unnamed-chunk-16-1.png)
 ```{r}
 highest_cum_wks <- GLOBAL_TOP_10 %>% 
   filter(str_detect(show_title, "Hindi")) |> 
@@ -310,6 +309,7 @@ ggplot(world_map) +
   theme_minimal() +
   guides(fill = "none")
 ```
+[](docs/mp01_files/figure-html/unnamed-chunk-17-1.png)
 In the map above, we can see that *WWE* has a strong presence in North America, South America, Europe, and parts of Asia. However, there are still many countries in Africa and the Middle East that have yet to embrace the thrill of *WWE*. With Netflix's global reach, *WWE* has the potential to expand its audience and bring the excitement of wrestling to new regions. Speaking of regions, the graph below shows the number of times a WWE show has hit the weekly top 10. It's not surprising that the 2 biggest events, *WrestleMania* and *SummerSlam*, are the most popular show.
 ```{r}
 country_count <- wwe_tv %>%
@@ -321,7 +321,7 @@ ggplot(country_count, aes(x= reorder(show_title, num_countries), y=num_countries
   coord_flip() +
   labs(x ="WWE Shows", y = "# of Countries that WWE Hit Top 10", title = "WWE Popularity")
 ```
-
+[](docs/mp01_files/figure-html/unnamed-chunk-18-1.png)
 ```{r}
 #| include: false
 1+1
