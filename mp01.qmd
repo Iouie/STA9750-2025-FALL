@@ -71,8 +71,8 @@ num_countries <- COUNTRY_TOP_10 %>% distinct(country_name) %>% count()
 
 * Of all the non-english Netflix films, *All Quiet on the Western Front* ranks number one with **23** consecutive weeks in the global top 10.
 ```{r message=FALSE, warning=FALSE}
-non_engtop10 <- GLOBAL_TOP_10 |> select(category, show_title, cumulative_weeks_in_top_10) |> 
-  filter(category == "Films (Non-English)") |> 
+non_engtop10 <- GLOBAL_TOP_10 |> select(category, show_title, cumulative_weeks_in_top_10) |>
+  filter(category == "Films (Non-English)") |>
   arrange(desc(cumulative_weeks_in_top_10))
 ```
 
@@ -205,9 +205,10 @@ Netflix's cultural phenomenon, *Stranger Things*, will unveil their fifth and fi
 
 Throughout it's 4 seasons, *Stranger Things* has amassed **423,997,143** daily viewers.
 ```{r message=FALSE, warning=FALSE}
-GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title =='Stranger Things') |> 
+GLOBAL_TOP_10 |> select(show_title, weekly_hours_viewed) |> filter(show_title ==
+                                                                     'Stranger Things') |>
   group_by(show_title) |> summarise(total_weekly_hrs_stranger_things = sum(weekly_hours_viewed)) |>
-  mutate(daily_hours_viewed = 
+  mutate(daily_hours_viewed =
            total_weekly_hrs_stranger_things / 7)
 ```
 
