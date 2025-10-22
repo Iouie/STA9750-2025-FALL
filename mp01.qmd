@@ -17,7 +17,7 @@ Netflix has been investing heavily in original TV series and film content with t
 
 # 2) DATA EXPLORATION
 
-We are gathering the data from [Netflix's TumDum Top 10]([https://www.netflix.com/tudum/top10]), and cleaning it.
+We are gathering the data from [Netflix's TumDum Top 10](https://www.netflix.com/tudum/top10), and cleaning it.
 
 ```{r, message=FALSE, warning=FALSE, results='hide'}
 

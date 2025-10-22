@@ -15,29 +15,354 @@ my skills at Data Integration/Data Visualization/Metric Creation in an analysis 
 
 ## Data Acquisition and Preparation
 
-Code related to Data Acquisition and Preparation goes here.
-
-Remember that code blocks look like this: 
+Grabbing data from US Census Bureau.
 
 ```{r}
-# Your code goes in chunks like this
-library(tidyverse) # You will want this line for almost all MPs
-x <- 1 + 2 + 3
+if(!dir.exists(file.path("data", "mp02"))){
+    dir.create(file.path("data", "mp02"), showWarnings=FALSE, recursive=TRUE)
+}
+
+library <- function(pkg){
+    ## Mask base::library() to automatically install packages if needed
+    ## Masking is important here so downlit picks up packages and links
+    ## to documentation
+    pkg <- as.character(substitute(pkg))
+    options(repos = c(CRAN = "https://cloud.r-project.org"))
+    if(!require(pkg, character.only=TRUE, quietly=TRUE)) install.packages(pkg)
+    stopifnot(require(pkg, character.only=TRUE, quietly=TRUE))
+}
+
+library(tidyverse)
+library(glue)
+library(readxl)
+library(tidycensus)
+
+get_acs_all_years <- function(variable, geography="cbsa",
+                              start_year=2009, end_year=2023){
+    fname <- glue("{variable}_{geography}_{start_year}_{end_year}.csv")
+    fname <- file.path("data", "mp02", fname)
+    
+    if(!file.exists(fname)){
+        YEARS <- seq(start_year, end_year)
+        YEARS <- YEARS[YEARS != 2020] # Drop 2020 - No survey (covid)
+        
+        ALL_DATA <- map(YEARS, function(yy){
+            tidycensus::get_acs(geography, variable, year=yy, survey="acs1") |>
+                mutate(year=yy) |>
+                select(-moe, -variable) |>
+                rename(!!variable := estimate)
+        }) |> bind_rows()
+        
+        write_csv(ALL_DATA, fname)
+    }
+    
+    read_csv(fname, show_col_types=FALSE)
+}
+
+# Household income (12 month)
+INCOME <- get_acs_all_years("B19013_001") |>
+    rename(household_income = B19013_001)
+
+# Monthly rent
+RENT <- get_acs_all_years("B25064_001") |>
+    rename(monthly_rent = B25064_001)
+
+# Total population
+POPULATION <- get_acs_all_years("B01003_001") |>
+    rename(population = B01003_001)
+
+# Total number of households
+HOUSEHOLDS <- get_acs_all_years("B11001_001") |>
+    rename(households = B11001_001)
 ```
 
-and you can then print variables from chunks: 
+Manually grabbing number of new housing units built each year
 
 ```{r}
-x
+get_building_permits <- function(start_year = 2009, end_year = 2023){
+    fname <- glue("housing_units_{start_year}_{end_year}.csv")
+    fname <- file.path("data", "mp02", fname)
+    
+    if(!file.exists(fname)){
+        HISTORICAL_YEARS <- seq(start_year, 2018)
+        
+        HISTORICAL_DATA <- map(HISTORICAL_YEARS, function(yy){
+            historical_url <- glue("https://www.census.gov/construction/bps/txt/tb3u{yy}.txt")
+                
+            LINES <- readLines(historical_url)[-c(1:11)]
+
+            CBSA_LINES <- str_detect(LINES, "^[[:digit:]]")
+            CBSA <- as.integer(str_sub(LINES[CBSA_LINES], 5, 10))
+
+            PERMIT_LINES <- str_detect(str_sub(LINES, 48, 53), "[[:digit:]]")
+            PERMITS <- as.integer(str_sub(LINES[PERMIT_LINES], 48, 53))
+            
+            data_frame(CBSA = CBSA,
+                       new_housing_units_permitted = PERMITS, 
+                       year = yy)
+        }) |> bind_rows()
+        
+        CURRENT_YEARS <- seq(2019, end_year)
+        
+        CURRENT_DATA <- map(CURRENT_YEARS, function(yy){
+            current_url <- glue("https://www.census.gov/construction/bps/xls/msaannual_{yy}99.xls")
+            
+            temp <- tempfile()
+            
+            download.file(current_url, destfile = temp, mode="wb")
+            
+            fallback <- function(.f1, .f2){
+                function(...){
+                    tryCatch(.f1(...), 
+                             error=function(e) .f2(...))
+                }
+            }
+            
+            reader <- fallback(read_xlsx, read_xls)
+            
+            reader(temp, skip=5) |>
+                na.omit() |>
+                select(CBSA, Total) |>
+                mutate(year = yy) |>
+                rename(new_housing_units_permitted = Total)
+        }) |> bind_rows()
+        
+        ALL_DATA <- rbind(HISTORICAL_DATA, CURRENT_DATA)
+        
+        write_csv(ALL_DATA, fname)
+        
+    }
+    
+    read_csv(fname, show_col_types=FALSE)
+}
+
+PERMITS <- get_building_permits()
 ```
 
-or inline, like this: $x$ is `r x`.
+
+BLS data NAICS coding system
+
+```{r}
+library(httr2)
+library(rvest)
+get_bls_industry_codes <- function(){
+    fname <- fname <- file.path("data", "mp02", "bls_industry_codes.csv")
+    
+    if(!file.exists(fname)){
+    
+        resp <- request("https://www.bls.gov") |> 
+            req_url_path("cew", "classifications", "industry", "industry-titles.htm") |>
+            req_headers(`User-Agent` = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:143.0) Gecko/20100101 Firefox/143.0") |> 
+            req_error(is_error = \(resp) FALSE) |>
+            req_perform()
+        
+        resp_check_status(resp)
+        
+        naics_table <- resp_body_html(resp) |>
+            html_element("#naics_titles") |> 
+            html_table() |>
+            mutate(title = str_trim(str_remove(str_remove(`Industry Title`, Code), "NAICS"))) |>
+            select(-`Industry Title`) |>
+            mutate(depth = if_else(nchar(Code) <= 5, nchar(Code) - 1, NA)) |>
+            filter(!is.na(depth))
+        
+        naics_table <- naics_table |> 
+            filter(depth == 4) |> 
+            rename(level4_title=title) |> 
+            mutate(level1_code = str_sub(Code, end=2), 
+                   level2_code = str_sub(Code, end=3), 
+                   level3_code = str_sub(Code, end=4)) |>
+            left_join(naics_table, join_by(level1_code == Code)) |>
+            rename(level1_title=title) |>
+            left_join(naics_table, join_by(level2_code == Code)) |>
+            rename(level2_title=title) |>
+            left_join(naics_table, join_by(level3_code == Code)) |>
+            rename(level3_title=title) |>
+            select(-starts_with("depth")) |>
+            rename(level4_code = Code) |>
+            select(level1_title, level2_title, level3_title, level4_title, 
+                   level1_code,  level2_code,  level3_code,  level4_code)
+    
+        write_csv(naics_table, fname)
+    }
+    
+    read_csv(fname, show_col_types=FALSE)
+    
+}
+
+INDUSTRY_CODES <- get_bls_industry_codes()
+```
+
+
+BLS QUARTERLY CENSUS
+
+```{r}
+library(httr2)
+library(rvest)
+get_bls_qcew_annual_averages <- function(start_year=2009, end_year=2023){
+    fname <- glue("bls_qcew_{start_year}_{end_year}.csv.gz")
+    fname <- file.path("data", "mp02", fname)
+    
+    YEARS <- seq(start_year, end_year)
+    YEARS <- YEARS[YEARS != 2020] # Drop Covid year to match ACS
+    
+    if(!file.exists(fname)){
+        ALL_DATA <- map(YEARS, .progress=TRUE, possibly(function(yy){
+            fname_inner <- file.path("data", "mp02", glue("{yy}_qcew_annual_singlefile.zip"))
+            
+            if(!file.exists(fname_inner)){
+                request("https://www.bls.gov") |> 
+                    req_url_path("cew", "data", "files", yy, "csv",
+                                 glue("{yy}_annual_singlefile.zip")) |>
+                    req_headers(`User-Agent` = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:143.0) Gecko/20100101 Firefox/143.0") |> 
+                    req_retry(max_tries=5) |>
+                    req_perform(fname_inner)
+            }
+            
+            if(file.info(fname_inner)$size < 755e5){
+                warning(sQuote(fname_inner), "appears corrupted. Please delete and retry this step.")
+            }
+            
+            read_csv(fname_inner, 
+                     show_col_types=FALSE) |> 
+                mutate(YEAR = yy) |>
+                select(area_fips, 
+                       industry_code, 
+                       annual_avg_emplvl, 
+                       total_annual_wages, 
+                       YEAR) |>
+                filter(nchar(industry_code) <= 5, 
+                       str_starts(area_fips, "C")) |>
+                filter(str_detect(industry_code, "-", negate=TRUE)) |>
+                mutate(FIPS = area_fips, 
+                       INDUSTRY = as.integer(industry_code), 
+                       EMPLOYMENT = as.integer(annual_avg_emplvl), 
+                       TOTAL_WAGES = total_annual_wages) |>
+                select(-area_fips, 
+                       -industry_code, 
+                       -annual_avg_emplvl, 
+                       -total_annual_wages) |>
+                # 10 is a special value: "all industries" , so omit
+                filter(INDUSTRY != 10) |> 
+                mutate(AVG_WAGE = TOTAL_WAGES / EMPLOYMENT)
+        })) |> bind_rows()
+        
+        write_csv(ALL_DATA, fname)
+    }
+    
+    ALL_DATA <- read_csv(fname, show_col_types=FALSE)
+    
+    ALL_DATA_YEARS <- unique(ALL_DATA$YEAR)
+    
+    YEARS_DIFF <- setdiff(YEARS, ALL_DATA_YEARS)
+    
+    if(length(YEARS_DIFF) > 0){
+        stop("Download failed for the following years: ", YEARS_DIFF, 
+             ". Please delete intermediate files and try again.")
+    }
+    
+    ALL_DATA
+}
+
+WAGES <- get_bls_qcew_annual_averages()
+```
+
+
+JOINS household, household income, population, rent
+
+```{r}
+combined_data <- inner_join(HOUSEHOLDS, INCOME, by=c("GEOID", "NAME", "year")) |>
+    inner_join(POPULATION, by=c("GEOID", "NAME", "year")) |>
+    inner_join(RENT, by=c("GEOID", "NAME", "year")) |>
+    inner_join(PERMITS, by=c("GEOID" = "CBSA", "year")) |>
+    mutate(std_cbsa = paste0("C", GEOID))
+
+WAGES <- WAGES |>
+    mutate(std_cbsa = paste0(FIPS, "0"))
+```
+
+
 
 ## Exploratory Analysis
 
-Code related to Exploratory Data Analysis goes here. This may include
-exploratory graphics, instructor-provided exploratory questions, or other
-similar elements. 
+Which CBSA (by name) permitted the largest number of new housing units in the decade from 2010 to 2019 (inclusive)?
+
+```{r}
+largest_units <- combined_data |>
+    filter(year >= 2010, year <= 2019) |>
+    group_by(GEOID) |>
+    summarize(total_permitted = sum(new_housing_units_permitted, na.rm=TRUE)) |>
+    arrange(desc(total_permitted)) |>
+    slice_head(n=1) 
+```
+* From 2010 to 2019, the CBSA that permitted the largest number of new housing units is 	
+**26420** with a total of ***482,075*** units permitted.
+
+In what year did Albuquerque, NM (CBSA Number 10740) permit the most new housing units?
+```{r}
+abq_max_year <- combined_data |>
+    filter(GEOID == 10740) |>
+    arrange(desc(new_housing_units_permitted)) |>
+    slice_head(n=1)
+```
+* Albuquerque, NM (CBSA Number 10740) permitted the most new housing units in the year **2021** with ***4,021*** units permitted.
+
+Which state (not CBSA) had the highest average individual income in 2015? To answer this question, you will need to first compute the total income per CBSA by multiplying the average household income by the number of households, and then sum total income and total population across all CBSAs in a state. With these numbers, you can answer this question.
+
+```{r}
+state_income_2015 <- combined_data |>
+    filter(year == 2015) |>
+    mutate(total_income = household_income * households) |>
+    mutate(state = str_extract(NAME, ", (.{2})", group=1)) |>
+    group_by(state) |>
+    summarize(total_income = sum(total_income, na.rm=TRUE),
+              total_population = sum(population, na.rm=TRUE)) |>
+    mutate(average_individual_income = total_income / total_population) |>
+    arrange(desc(average_individual_income)) |>
+    slice_head(n=1)
+```
+* The state with the highest average individual income in 2015 is **DC** with an average individual income of ***$33,232.88***.
+
+Data scientists and business analysts are recorded under NAICS code 5182. What is the last year in which the NYC CBSA had the most data scientists in the country? In recent, the San Francisco CBSA has had the most data scientists.
+For this question, you may simply create a table of which CBSA had the most data scientists each year and then answer the question in the following text.
+
+```{r}
+areas <- combined_data |> select(NAME,std_cbsa)
+
+data_sci <- WAGES |> 
+    filter(INDUSTRY == 5182) |> 
+    group_by(YEAR,std_cbsa) |> filter(EMPLOYMENT !=0) |> 
+    summarise(max_employment = max(EMPLOYMENT, na.rm = TRUE)) |> 
+    slice_max(order_by = max_employment)
+
+#join table to get the city
+data_sci <- inner_join(data_sci, areas, by = "std_cbsa") |> distinct()
+
+#code for table
+```
+* The last year in which the NYC CBSA had the most data scientists in the country was **2015**.
+
+What fraction of total wages in the NYC CBSA was earned by people employed in the finance and insurance industries (NAICS code 52)? In what year did this fraction peak?
+
+```{r}
+# get the sum of total wages in NYC cbsa per year
+total_wages_sum <- WAGES |> 
+    filter(std_cbsa == "C35620") |> group_by(YEAR) |> summarise(sum_total_wages = sum(TOTAL_WAGES))
+
+# get the sum of financial wages in NYC cbsa per year
+financial_wages_sum <- WAGES |> 
+    filter(std_cbsa == "C35620", str_starts(as.character(INDUSTRY), "52")) |> 
+    group_by(YEAR) |> summarise(sum_financial_wages = sum(TOTAL_WAGES))
+
+# join both and calculate fraction
+wage_fraction <- inner_join(total_wages_sum, financial_wages_sum, by = "YEAR") |>
+    mutate(fraction_of_financial_wages = sum_financial_wages / sum_total_wages) |> arrange(desc(fraction_of_financial_wages))
+
+# getting the total fraction
+total_fraction <- wage_fraction |> summarise(fraction_total = sum(sum_financial_wages) / sum(sum_total_wages) * 100)
+
+```
+* The fraction of total wages in the NYC CBSA earned by people employed in the finance and insurance industries is ***13.29%***. This fraction peaked in the year **2021** with a fraction of ***15.45%***.
 
 ## Final Insights and Deliverable
 
