@@ -31,11 +31,15 @@ library <- function(pkg){
     if(!require(pkg, character.only=TRUE, quietly=TRUE)) install.packages(pkg)
     stopifnot(require(pkg, character.only=TRUE, quietly=TRUE))
 }
-
+library(dplyr)
 library(tidyverse)
 library(glue)
 library(readxl)
 library(tidycensus)
+library(ggplot2)
+library(gghighlight)
+library(scales)
+library(DT)
 
 get_acs_all_years <- function(variable, geography="cbsa",
                               start_year=2009, end_year=2023){
@@ -363,6 +367,166 @@ total_fraction <- wage_fraction |> summarise(fraction_total = sum(sum_financial_
 
 ```
 * The fraction of total wages in the NYC CBSA earned by people employed in the finance and insurance industries is ***13.29%***. This fraction peaked in the year **2021** with a fraction of ***15.45%***.
+
+## Task 3
+
+The relationship between monthly rent and average household income per CBSA in 2009.
+
+```{r}
+p1 <- ggplot(combined_data |> filter(year == 2009), 
+             aes(x = household_income, y = monthly_rent)) +
+    geom_point(alpha = 0.6, color="blue") +
+    geom_smooth(method = "lm", color = "#F7B800") +
+    labs(title = "Relationship between Monthly Rent and Average Household Income (2009)",
+         x = "Average Household Income",
+         y = "Monthly Rent",
+        caption = "Source: US Census Bureau ACS") +
+    theme_grey( base_size = 18) + 
+    scale_x_continuous(labels = scales::dollar_format()) +
+    scale_y_continuous(labels = scales::dollar_format()) +
+    theme(plot.title = element_text(size = 12, face = "bold"),
+          plot.caption = element_text(size = 5),
+          axis.title = element_text(size = 9),
+          axis.text = element_text(size = 7))
+
+print(p1)
+```
+
+* The scatter plot shows a strong positive relationship between household income and monthly rent in 2009. Metro areas tend to have higher average household incomes which results in higher monthly rents. The linear regression line indicates that as household income increases, monthly rent also tends to increase.
+
+The relationship between total employment and total employment in the health care and social services sector (NAICS 62) across different CBSAs. Design your visualization so that it is possible to see the evolution of this relationship over time.
+```{r}
+# get the total employment per year per cbsa
+emp_total <- WAGES |> 
+    group_by(YEAR) |> 
+  summarise(total_employment = sum(EMPLOYMENT)) |> 
+    ungroup()
+
+# get total employment of health
+health_total <- WAGES |> 
+    filter(str_starts(as.character(INDUSTRY), "62")) |> 
+    group_by(YEAR) |> 
+    summarise(health_employment = sum(EMPLOYMENT)) |>
+    ungroup()
+# join both and calculate fraction
+grouped_emp <- inner_join(emp_total, health_total, by = "YEAR") |> 
+    mutate(fraction_health_employment = health_employment / total_employment)
+
+p2 <- ggplot(grouped_emp, aes(x= YEAR, y =fraction_health_employment)) +
+    geom_line(size = 0.8, color = "#F7B800") +
+    geom_point(color = "blue") +
+    labs(title = "Total and Health Employment Percantage over time",
+         x = "Year",
+         y = "Percentage of Health Employment to Total Employment",
+         caption = "Source: BLS QCEW") +
+    theme_grey(base_size = 18) + 
+    scale_y_continuous(labels = scales::percent_format(accuarcy = 1)) +
+    theme(plot.title = element_text(size = 12, face = "bold"),
+          plot.caption = element_text(size = 5),
+          axis.title = element_text(size = 9),
+          axis.text = element_text(size = 7))
+
+print(p2)
+```
+
+* The plot shows an increase of percentage of Health Employees to Total Employees over time. This indicates that the health care and social services sector has been growing in the economy. There was noticeable growth from 2019 to 2021 due to the pandemic.
+
+The evolution of average household size over time. Use different lines to represent different CBSAs.
+
+```{r}
+p3 <- ggplot(combined_data, aes(x= year, y = population / households, 
+                                group = GEOID, 
+                                color =case_when(GEOID == 35620 ~ "New York",
+                                                 GEOID == 31080 ~ "Los Angeles"))) +
+    geom_line(linewidth = 0.8) +
+   scale_color_manual(values = c("New York" = "#F7B800", "Los Angeles" = "green"),
+                     name = "City") +
+  gghighlight(GEOID %in% c(35620, 31080), 
+              use_direct_label = FALSE, 
+              unhighlighted_params = list(alpha=0.5)) +
+    labs(title = "Average Household Size over Time by CBSA",
+         x = "Year",
+         y = "Average Household Size",
+         caption = "Source: US Census Bureau ACS") +
+    theme_grey(base_size = 18) + 
+    theme(plot.title = element_text(size = 12, face = "bold"),
+          plot.caption = element_text(size = 5),
+          axis.title = element_text(size = 9),
+          axis.text = element_text(size = 7))
+
+print(p3)
+```
+
+* The plot shows the average household size over time for different CBSAs, with a focus on New York and Los Angeles. Both cities show a slight decrease in average household size over the years, indicating a trend towards smaller households in these metropolitan areas.
+
+## Rent Burden
+```{r}
+rent_burden_data <- inner_join(INCOME, RENT, by=c("GEOID", "NAME", "year")) |>
+    mutate(yearly_rent = monthly_rent * 12,
+    rent_burden_percent = yearly_rent/ household_income * 100)
+
+# scaling it
+lowest_burden <- min(rent_burden_data$rent_burden_percent, na.rm = TRUE)
+highest_burden <- max(rent_burden_data$rent_burden_percent, na.rm = TRUE)
+
+# creating rbi
+rent_burden_data <- rent_burden_data |>
+    mutate(rbi = 100 * (rent_burden_percent - lowest_burden ) / (highest_burden - lowest_burden))
+```
+
+* Rent burden is used to measure percentage of income spent on rent. I've standardized the metric so that 0 would be the lowest burden and 100 would be the highest in the observed data.
+
+## Metropolitan California
+```{r}
+cali_rent_burden <- rent_burden_data |>
+    filter(str_detect(NAME, "Los Angeles")) |>
+  select( 'Year' = year,
+          'Monthly Rent' = monthly_rent,
+          'Household Income' = household_income,
+          'Rent Burden Percent' = rent_burden_percent,
+          'Rent Burden Score' = rbi) |> 
+  mutate(`Monthly Rent` = scales::dollar(`Monthly Rent`),
+         `Household Income` = scales::dollar(`Household Income`),
+         `Rent Burden Percent` = scales::percent(`Rent Burden Percent` / 100, accuracy = 0.1),
+         `Rent Burden Score` = round(`Rent Burden Score`, 2))
+
+
+
+datatable(cali_rent_burden,
+          class = "table table-striped table-hover table-dark table-sm",
+          caption = "Los Angeles Rent Burden 2009-2023",
+          options = list(pageLength = 15,
+                         autoWidth = TRUE,
+                         searching = FALSE))
+        
+```
+* Los Angeles has seen a small increase in rent burden from 2009 to 2023, with the Rent Burden Score rising from approximately **47.26** in 2009 to **52.91** in 2023 while drastically increasing in Household Income. The rent burden has been in the range from **24%** to **26%**.
+
+## Highest and Lowest Metro Burden Areas
+```{r}
+low_burden <- rent_burden_data |>
+    filter(year == 2023, str_detect(NAME, "Metro")) |>
+    select(
+      'City' = NAME, 
+      'Year' = year, 
+      'Rent Burden Percent' = rent_burden_percent, 
+      'Rent Burden Score' = rbi) |>
+    mutate(`Rent Burden Percent` = scales::percent(`Rent Burden Percent` / 100, accuracy = 0.1),
+           `Rent Burden Score` = round(`Rent Burden Score`, 2)) |>
+    arrange(desc(`Rent Burden Score`)) |> arrange(`Rent Burden Score`) |>
+    head(10) 
+    
+datatable(
+  low_burden,
+  caption = "Top 10 Lowest Rent Burden Metro Areas in 2023",
+  class = "table table-striped table-hover table-dark table-sm",
+  options = list(pageLength = 10,
+                 autoWidth = TRUE,
+                 searching = FALSE)
+)
+```
+* The lowest rent burden score is **Bismarck, North Dakota** with a **5.27** rent burden score with residents spending only **13.7%** of their income on rent.
+
 
 ## Final Insights and Deliverable
 
