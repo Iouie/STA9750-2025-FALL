@@ -502,7 +502,7 @@ datatable(cali_rent_burden,
 ```
 * Los Angeles has seen a small increase in rent burden from 2009 to 2023, with the Rent Burden Score rising from approximately **47.26** in 2009 to **52.91** in 2023 while drastically increasing in Household Income. The rent burden has been in the range from **24%** to **26%**.
 
-## Highest and Lowest Metro Burden Areas
+##  Lowest Metro Burden Areas
 ```{r}
 low_burden <- rent_burden_data |>
     filter(year == 2023, str_detect(NAME, "Metro")) |>
@@ -527,6 +527,155 @@ datatable(
 ```
 * The lowest rent burden score is **Bismarck, North Dakota** with a **5.27** rent burden score with residents spending only **13.7%** of their income on rent.
 
+## Instantaneous Housing Growth
+```{r}
+task5_table <- POPULATION |>
+  inner_join(PERMITS, by=c("year", 'GEOID' = 'CBSA'))
+
+# Calculate 5-year growth using lag function
+population_growth_5yr <- task5_table |>
+  arrange(NAME, year) |>
+mutate(
+  pop_5yrs_ago = lag(population, 5),
+  pop_growth_5yrs = population - lag(population, 5),
+  pop_growth_5yr_percent = (population - lag(population, 5)) / lag(population, 5) * 100,
+  permits_per_1000 = (new_housing_units_permitted / population) * 1000) |>
+  ungroup()
+
+# Average permits per 1000 in 2014 as baseline
+housing_growth <- population_growth_5yr |>
+  filter(year == 2014) |>
+  summarise(baseline = mean(permits_per_1000, na.rm = TRUE)) |>
+  pull(baseline)
+
+# Index where 100 = 2014 baseline
+population_growth_5yr <- population_growth_5yr |>
+  mutate(
+    instantaneous_score = (permits_per_1000 / housing_growth) * 100
+  )
+
+pop_table <- population_growth_5yr |>
+  filter(year == 2014)
+  select(
+    'City' = NAME,
+    'Year' = year,
+    'Population (5 yrs Ago)' = pop_5yrs_ago,
+    'New Housing Units Permitted' = new_housing_units_permitted,
+    'Population Growth (5 yr)' = pop_growth_5yrs,
+    'Population Growth (5 yr %)' = pop_growth_5yr_percent,
+    'Permits per 1000 People' = permits_per_1000,
+    'Instantaneous Score' = instantaneous_score
+  ) |>
+  drop_na() |>
+  mutate(
+    `Population Growth (5 yr %)` = scales::percent(`Population Growth (5 yr %)` / 100, accuracy = 0.1),
+    `Permits per 1000 People` = round(`Permits per 1000 People`, 2),
+    `Instantaneous Score` = round(`Instantaneous Score`, 2)
+  )
+
+
+datatable(
+  pop_table,
+  caption = "Instantaenous Scores",
+  class = "table table-striped table-hover table-dark table-sm",
+  options = list(pageLength = 10,
+                 autoWidth = TRUE,
+                 searching = FALSE),
+)
+```
+* Instantaneous Scores above **100**, Faster building housing than 2014 average
+* Instantaneous Scores below **100**, Slower building housing than 2014 average
+* Instantaneous Scores **100**, Housing building matches 2014 average 
+
+* Florida and North/South Carolina Metro Areas have some of the highest Instantaneous Scores, occupying 9 of the top 10 spots, while Illinois, West Virginia, and Arkansas have some of the lowest Instataneous Scores.
+
+
+## Rate Base Housing
+
+```{r}
+# Declining Pop
+permits_per_new_resident <- population_growth_5yr |>
+  mutate(permits_per_new_resident = case_when(
+    pop_growth_5yrs <= 0 ~ permits_per_1000,
+    TRUE ~ new_housing_units_permitted / pop_growth_5yrs),
+    
+    # Prevent outliers
+  cap_ratio = pmin(permits_per_new_resident, 10))
+
+# Baseline 2014 avg
+baseline_rate <-permits_per_new_resident |>
+  filter(year >= 2014, pop_growth_5yrs > 0) |>
+  summarise(baseline = mean(cap_ratio, na.rm = TRUE)) |>
+  pull(baseline)
+
+# Index where 100 = 2014 baseline
+permits_per_new_resident <- permits_per_new_resident |>
+  mutate(rate_score = cap_ratio / baseline_rate * 100)
+
+rate_table <- permits_per_new_resident |>
+  filter(year >= 2014) |>
+  select(
+    'City' = NAME,
+    'Year' = year,
+    'Population (5 yrs Ago)' = pop_5yrs_ago,
+    'New Housing Units Permitted' = new_housing_units_permitted,
+    'Ratio of Housing Units to Population Growth' = cap_ratio,
+    'Permits per 1000 People' = permits_per_1000,
+    'Rate Score' = rate_score,
+  ) |>
+  drop_na() |>
+  mutate(
+    `Permits per 1000 People` = round(`Permits per 1000 People`, 2),
+    `Ratio of Housing Units to Population Growth` = round(`Ratio of Housing Units to Population Growth`, 2),
+    `Rate Score` = round(`Rate Score`, 2)
+  )
+
+
+datatable(
+  rate_table,
+  caption = "Rate Scores",
+  class = "table table-striped table-hover table-dark table-sm",
+  options = list(pageLength = 10,
+                 autoWidth = TRUE,
+                 searching = FALSE),
+)
+  
+```
+
+* Rate Scores above **100**, Faster building housing than 2014 average population growth
+* Rate Scores below **100**, Slower building housing than 2014 average population growth
+* Rate Scores **100**, Housing building matches 2014 average population growth
+
+* There are many different states with high Rate Scores, with Florida, Texas, and North Carolina Metro Areas having multiple entries in the top 10. On the other hand, Illinois, West Virginia, and Arkansas Metro Areas have some of the lowest Rate Scores.
+## Composite Score
+```{r}
+composite_scores <- permits_per_new_resident |>
+  filter(year >= 2014) |>
+  mutate(composite_score = (instantaneous_score + rate_score) / 2) |>
+  drop_na() |>
+  select(
+    'City' = NAME,
+    'Year' = year,
+    'Instantaneous Score' = instantaneous_score,
+    'Rate Score' = rate_score,
+    'Composite Score' = composite_score
+  ) |>
+    mutate(
+    `Instantaneous Score` = round(`Instantaneous Score`, 2),
+    `Composite Score` = round(`Composite Score`, 2),
+    `Rate Score` = round(`Rate Score`, 2)) |>
+  arrange(desc(`Composite Score`))
+  
+datatable(
+  composite_scores,
+  caption = "Composite Score",
+  class = "table table-striped table-hover table-dark table-sm",
+  options = list(pageLength = 10,
+                 autoWidth = TRUE,
+                 searching = FALSE),
+)
+
+```
 
 ## Final Insights and Deliverable
 
