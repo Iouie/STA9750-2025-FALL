@@ -10,14 +10,13 @@ format:
 
 ## Introduction
 
-A suitable introduction goes here. In this mini-project, I intend to demonstrate
-my skills at Data Integration/Data Visualization/Metric Creation in an analysis of Official Statistics/Economic Data/Census Data data.
+* Housing affordability is an increasing challenge to many metropolitan areas. Rent growth has begun to outpace income, causing financial strain on many households. In this mini-project, we will explore data from the US Census Bureau and the Bureau of Labor Statistics to analyze housing affordability trends across different metropolitan areas in the United States. We will compute rent burden metrics, housing growth metrics, and identify metropolitan areas that have successfully managed to provide affordable housing options for their residents.
 
 ## Data Acquisition and Preparation
 
 Grabbing data from US Census Bureau.
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 if(!dir.exists(file.path("data", "mp02"))){
     dir.create(file.path("data", "mp02"), showWarnings=FALSE, recursive=TRUE)
 }
@@ -31,6 +30,7 @@ library <- function(pkg){
     if(!require(pkg, character.only=TRUE, quietly=TRUE)) install.packages(pkg)
     stopifnot(require(pkg, character.only=TRUE, quietly=TRUE))
 }
+
 library(dplyr)
 library(tidyverse)
 library(glue)
@@ -82,7 +82,7 @@ HOUSEHOLDS <- get_acs_all_years("B11001_001") |>
 
 Manually grabbing number of new housing units built each year
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 get_building_permits <- function(start_year = 2009, end_year = 2023){
     fname <- glue("housing_units_{start_year}_{end_year}.csv")
     fname <- file.path("data", "mp02", fname)
@@ -146,7 +146,7 @@ PERMITS <- get_building_permits()
 
 BLS data NAICS coding system
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 library(httr2)
 library(rvest)
 get_bls_industry_codes <- function(){
@@ -200,7 +200,7 @@ INDUSTRY_CODES <- get_bls_industry_codes()
 
 BLS QUARTERLY CENSUS
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 library(httr2)
 library(rvest)
 get_bls_qcew_annual_averages <- function(start_year=2009, end_year=2023){
@@ -274,7 +274,7 @@ WAGES <- get_bls_qcew_annual_averages()
 
 JOINS household, household income, population, rent
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 combined_data <- inner_join(HOUSEHOLDS, INCOME, by=c("GEOID", "NAME", "year")) |>
     inner_join(POPULATION, by=c("GEOID", "NAME", "year")) |>
     inner_join(RENT, by=c("GEOID", "NAME", "year")) |>
@@ -291,7 +291,7 @@ WAGES <- WAGES |>
 
 Which CBSA (by name) permitted the largest number of new housing units in the decade from 2010 to 2019 (inclusive)?
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 largest_units <- combined_data |>
     filter(year >= 2010, year <= 2019) |>
     group_by(GEOID) |>
@@ -303,7 +303,7 @@ largest_units <- combined_data |>
 **26420** with a total of ***482,075*** units permitted.
 
 In what year did Albuquerque, NM (CBSA Number 10740) permit the most new housing units?
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 abq_max_year <- combined_data |>
     filter(GEOID == 10740) |>
     arrange(desc(new_housing_units_permitted)) |>
@@ -313,7 +313,7 @@ abq_max_year <- combined_data |>
 
 Which state (not CBSA) had the highest average individual income in 2015? To answer this question, you will need to first compute the total income per CBSA by multiplying the average household income by the number of households, and then sum total income and total population across all CBSAs in a state. With these numbers, you can answer this question.
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 state_income_2015 <- combined_data |>
     filter(year == 2015) |>
     mutate(total_income = household_income * households) |>
@@ -330,7 +330,7 @@ state_income_2015 <- combined_data |>
 Data scientists and business analysts are recorded under NAICS code 5182. What is the last year in which the NYC CBSA had the most data scientists in the country? In recent, the San Francisco CBSA has had the most data scientists.
 For this question, you may simply create a table of which CBSA had the most data scientists each year and then answer the question in the following text.
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 areas <- combined_data |> select(NAME,std_cbsa)
 
 data_sci <- WAGES |> 
@@ -348,7 +348,7 @@ data_sci <- inner_join(data_sci, areas, by = "std_cbsa") |> distinct()
 
 What fraction of total wages in the NYC CBSA was earned by people employed in the finance and insurance industries (NAICS code 52)? In what year did this fraction peak?
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 # get the sum of total wages in NYC cbsa per year
 total_wages_sum <- WAGES |> 
     filter(std_cbsa == "C35620") |> group_by(YEAR) |> summarise(sum_total_wages = sum(TOTAL_WAGES))
@@ -368,11 +368,11 @@ total_fraction <- wage_fraction |> summarise(fraction_total = sum(sum_financial_
 ```
 * The fraction of total wages in the NYC CBSA earned by people employed in the finance and insurance industries is ***13.29%***. This fraction peaked in the year **2021** with a fraction of ***15.45%***.
 
-## Task 3
+## Initial Visualizations
 
 The relationship between monthly rent and average household income per CBSA in 2009.
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 p1 <- ggplot(combined_data |> filter(year == 2009), 
              aes(x = household_income, y = monthly_rent)) +
     geom_point(alpha = 0.6, color="blue") +
@@ -395,7 +395,7 @@ print(p1)
 * The scatter plot shows a strong positive relationship between household income and monthly rent in 2009. Metro areas tend to have higher average household incomes which results in higher monthly rents. The linear regression line indicates that as household income increases, monthly rent also tends to increase.
 
 The relationship between total employment and total employment in the health care and social services sector (NAICS 62) across different CBSAs. Design your visualization so that it is possible to see the evolution of this relationship over time.
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 # get the total employment per year per cbsa
 emp_total <- WAGES |> 
     group_by(YEAR) |> 
@@ -433,7 +433,7 @@ print(p2)
 
 The evolution of average household size over time. Use different lines to represent different CBSAs.
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 p3 <- ggplot(combined_data, aes(x= year, y = population / households, 
                                 group = GEOID, 
                                 color =case_when(GEOID == 35620 ~ "New York",
@@ -460,9 +460,10 @@ print(p3)
 * The plot shows the average household size over time for different CBSAs, with a focus on New York and Los Angeles. Both cities show a slight decrease in average household size over the years, indicating a trend towards smaller households in these metropolitan areas.
 
 ## Rent Burden
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 rent_burden_data <- inner_join(INCOME, RENT, by=c("GEOID", "NAME", "year")) |>
     mutate(yearly_rent = monthly_rent * 12,
+    rent_burden = yearly_rent / household_income,
     rent_burden_percent = yearly_rent/ household_income * 100)
 
 # scaling it
@@ -477,7 +478,7 @@ rent_burden_data <- rent_burden_data |>
 * Rent burden is used to measure percentage of income spent on rent. I've standardized the metric so that 0 would be the lowest burden and 100 would be the highest in the observed data.
 
 ## Metropolitan California
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 cali_rent_burden <- rent_burden_data |>
     filter(str_detect(NAME, "Los Angeles")) |>
   select( 'Year' = year,
@@ -503,7 +504,7 @@ datatable(cali_rent_burden,
 * Los Angeles has seen a small increase in rent burden from 2009 to 2023, with the Rent Burden Score rising from approximately **47.26** in 2009 to **52.91** in 2023 while drastically increasing in Household Income. The rent burden has been in the range from **24%** to **26%**.
 
 ##  Lowest Metro Burden Areas
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 low_burden <- rent_burden_data |>
     filter(year == 2023, str_detect(NAME, "Metro")) |>
     select(
@@ -528,7 +529,7 @@ datatable(
 * The lowest rent burden score is **Bismarck, North Dakota** with a **5.27** rent burden score with residents spending only **13.7%** of their income on rent.
 
 ## Instantaneous Housing Growth
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 task5_table <- POPULATION |>
   inner_join(PERMITS, by=c("year", 'GEOID' = 'CBSA'))
 
@@ -555,7 +556,7 @@ population_growth_5yr <- population_growth_5yr |>
   )
 
 pop_table <- population_growth_5yr |>
-  filter(year == 2014)
+  filter(year >= 2014) |>
   select(
     'City' = NAME,
     'Year' = year,
@@ -592,7 +593,7 @@ datatable(
 
 ## Rate Base Housing
 
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 # Declining Pop
 permits_per_new_resident <- population_growth_5yr |>
   mutate(permits_per_new_resident = case_when(
@@ -646,9 +647,10 @@ datatable(
 * Rate Scores below **100**, Slower building housing than 2014 average population growth
 * Rate Scores **100**, Housing building matches 2014 average population growth
 
-* There are many different states with high Rate Scores, with Florida, Texas, and North Carolina Metro Areas having multiple entries in the top 10. On the other hand, Illinois, West Virginia, and Arkansas Metro Areas have some of the lowest Rate Scores.
+* There are many different states with extremely high Rate Scores. On the other hand, Connecticut, New York, and Ohio Metro areas have some of the lowest Rate Scores.
+
 ## Composite Score
-```{r}
+```{r, message=FALSE, warning=FALSE, results='hide'}
 composite_scores <- permits_per_new_resident |>
   filter(year >= 2014) |>
   mutate(composite_score = (instantaneous_score + rate_score) / 2) |>
@@ -674,19 +676,201 @@ datatable(
                  autoWidth = TRUE,
                  searching = FALSE),
 )
-
 ```
 
-## Final Insights and Deliverable
+* **Salisbury, Maryland** has the highest Composite Score, while **Morgantown, West Virginia** has the lowest Composite Score.
 
-Code related to the final deliverable of the assignment goes here. 
+## Task 6: Visualization
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+
+yimby1_data <- rent_burden_data |>
+  group_by(GEOID, NAME) |>
+  filter(year >= 2014) |> 
+  filter(!str_detect(str_trim(NAME), regex("PR Metro Area", ignore_case= TRUE))) |>
+ summarize(
+   rent_burden_early = rent_burden_percent[year == 2014],
+   rent_burden_latest = rent_burden_percent[year == max(year)],
+   .groups = "drop"
+ ) |>
+  mutate(
+   rent_burden_change = rent_burden_latest - rent_burden_early)
+
+#threshold for high early burden
+early_med <- median(yimby1_data$rent_burden_early, na.rm = TRUE)
+
+yimby1_data <- yimby1_data |>
+  mutate(
+    high_early = !is.na(rent_burden_early) & (rent_burden_early > early_med),
+    decreased_burden = !is.na(rent_burden_change) & (rent_burden_change < 0),
+    category = case_when(
+      high_early & decreased_burden ~ "High Early, Decreased",
+      high_early & !decreased_burden ~ "High Early, Not Decreased",
+      !high_early & decreased_burden ~ "Low Early, Decreased",
+      TRUE ~ "Low Early, Not Decreased"
+    ),
+      mutate(across(c(rent_burden_early, rent_burden_latest, rent_burden_change),
+                ~ {
+                  x <- as.numeric(.)
+                  if (all(is.na(x))) return(x)
+                  if (max(abs(x), na.rm = TRUE) <= 1) x <- x * 100
+                  round(x, 2)
+                }))
+  )
+
+cat_colors <- c(
+  "High Early, Decreased" = "#1a9850",   # green
+  "High Early, Not Decreased"       = "#fc8d59",   # orange
+  "Low Early, Decreased"        = "#91cf60",   # light green
+  "Low Early, Not Decreased"               = "grey80"
+)
+
+yimby_graph1 <- ggplot(yimby1_data, aes(x= rent_burden_early, y = rent_burden_change)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  geom_vline(xintercept = early_med, linetype = "dashed", color = "black") +
+  geom_point(aes(color = category), size = 4, alpha = 0.7) +
+  scale_color_manual(values = cat_colors, name = "Category") +
+  scale_x_continuous(labels = label_number(suffix = "%", accuracy = 0.1)) +
+  scale_y_continuous(labels = label_number(suffix = "%", accuracy = 0.1)) +
+  labs(
+    x = paste0("Early Rent Burden (2014)%"),
+    y = "Change in Rent Burden (2023 to 2014)%",
+    title = "Early rent burden vs change in rent burden") +
+  theme_grey(base_size = 18) +
+  theme(legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text  = element_text(size = 5),
+    legend.key.size = unit(0.8, "lines"),
+    legend.spacing.x = unit(0.2, "cm"))
+
+print(yimby_graph1)
+
+datatable(
+  yimby1_data,
+  caption = "Rent Over Time",
+  class = "table table-striped table-hover table-dark table-sm",
+  options = list(pageLength = 10,
+                 autoWidth = TRUE,
+                 searching = TRUE),
+)
+```
+* This scatter plot visualizes the relationship between early rent burden in 2014 and the change in rent burden up to 2023 for various CBSAs. The dashed lines indicate the median early rent burden and zero change in rent burden. CBSAs in the bottom-right show a desirable YIMBY characteristic of high early rent burden with a decrease over time.
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+# have had population growth over the study period and have had above-average housing growth during the study period.
+# finding pop growth from 2014 - 2023
+pop_for_yimby <- population_growth_5yr |>
+  filter(year %in% c(2014, 2023)) |>
+  select(GEOID, NAME, year, population) |>
+  group_by(GEOID, NAME, year) |>
+  summarize(population = mean(population, na.rm = TRUE)) |>
+  pivot_wider(names_from = year, values_from = population, names_prefix = "pop_") |>
+  drop_na(pop_2014, pop_2023) |>
+  mutate(
+    pop_growth = pop_2023 - pop_2014,
+    pop_growth_percentage = if_else(!is.na(pop_2014) & pop_2014 != 0,
+                             100 * (pop_2023 - pop_2014) / pop_2014,
+                             NA_real_),
+    grew_2014_2023 = if_else(!is.na(pop_growth) & pop_growth > 0, TRUE, FALSE)
+  ) 
+
+combined_data <- pop_for_yimby |>
+  inner_join(permits_per_new_resident |>
+              select(GEOID, permits_per_1000), by = "GEOID") |>
+  distinct(GEOID, .keep_all = TRUE)
 
 
+yimby_data2 <- combined_data |>
+  filter(!is.na(pop_growth) & !is.na(permits_per_1000)) |>
+mutate(
+  pop_grew = pop_growth > 0,
+  above_avg_housing = permits_per_1000 > median(combined_data$permits_per_1000, na.rm = TRUE),
+  category = case_when(
+    pop_grew & above_avg_housing ~ "Grew Population, Above Avg Housing",
+    pop_grew & !above_avg_housing ~ "Grew Population, Below Avg Housing",
+    !pop_grew & above_avg_housing ~ "Declined Population, Above Avg Housing",
+    TRUE ~ "Declined Population, Below Avg Housing"
+  ),
+  category= factor(category, levels=c("Grew Population, Above Avg Housing",
+                                      "Grew Population, Below Avg Housing",
+                                      "Declined Population, Above Avg Housing",
+                                      "Declined Population, Below Avg Housing"))
+) |>
+select(-grew_2014_2023,-pop_grew, -above_avg_housing) |>
+mutate(across(c(pop_growth_percentage, permits_per_1000),
+                ~ {
+                  x <- as.numeric(.)
+                  if (all(is.na(x))) return(x)
+                  if (max(abs(x), na.rm = TRUE) <= 1) x <- x * 100
+                  round(x, 2)
+                }))
+
+cat_colors <- c(
+  "Grew Population, Above Avg Housing" = "#1a9850",
+  "Grew Population, Below Avg Housing" = "#91cf60",
+  "Declined Population, Above Avg Housing" = "#fc8d59",
+  "Declined Population, Below Avg Housing" = "grey70"
+)
+
+yimby_graph2 <- ggplot(yimby_data2, aes(x= permits_per_1000, y = pop_growth_percentage, color = category)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  geom_vline(xintercept = median(yimby_data2$permits_per_1000, na.rm = TRUE), linetype = "dashed", color = "black") +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = cat_colors, name = "Category") +
+  scale_x_continuous(labels = label_number(suffix = "", accuracy = 0.1)) +
+  scale_y_continuous(labels = label_number(suffix = "", accuracy = 1)) +
+  labs(
+    x = paste0("Permits per 1000 People"),
+    y = "Population Growth (2014 to 2023)%",
+    title = "Housing Growth vs Population Growth") +
+  theme_grey(base_size = 18) +
+  theme(legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text  = element_text(size = 3),
+    legend.key.size = unit(0.8, "lines"),
+    legend.spacing.x = unit(0.2, "cm"))
+
+print(yimby_graph2)
+
+datatable(
+  yimby_data2,
+  caption = "Housing Growth vs Population Growth",
+  class = "table table-striped table-hover table-dark table-sm",
+  options = list(pageLength = 10,
+                 autoWidth = TRUE,
+                 searching = TRUE),
+)
+```
+* This scatter plot visualizes the relationship between housing growth (measured as permits per 1000 people in 2023) and population growth from 2014 to 2023 for various CBSAs. The dashed lines indicate the median housing growth and zero population growth. CBSAs in the top-right quadrant show desirable YIMBY characteristics of both population growth and above-average housing growth.
+
+## Policy Brief
+
+### Introduction 
+
+* Housing affordability is a critical issue in many metropolitan areas across the United States. Rent prices are growing faster than incomes, leading to increased rent burden for many households. This is not a sustainable situation and requires immediate attention from policymakers. Despite the challenges, some metropolitan areas have successfully implemented policies that have led to decreased rent burden while still experiencing population growth. These areas can serve as models for other cities facing similar issues.
+
+### Proposed Sponsors 
+
+* We would like to reach out to two sponsors for this policy brief: a sponsor from *Columbus, GA-AL Metropolitan Area* in a YIMBY zone and a co-sponsor from *Fresno, CA Metropolitan Area* in a NIMBY zone. Both these metropolitan areas have successfully lowered rent burdens while growing in population and opportunities when it comes to housing affordability. By collaborating with sponsors from both YIMBY and NIMBY zones, we can gain a comprehensive understanding of the issue and develop effective strategies to address it across America.
+
+### Benefits 
+
+#### Trade, Transportation, and Utilities (NAICS 42-49)
+
+* By supporting affordable housing initiatives in Columbus, GA-AL Metropolitan Area and Fresno, CA Metropolitan Area, we can ensure that workers in the Trade, Transportation, and Utilities sector have access to affordable housing options. This will not only improve their quality of life but also enhance their productivity and job satisfaction, leading to a more robust economy in these metropolitan areas. Lower housing costs and reducing rent near transit reduces commute time and stress, which improves overall well-being and reliability. Recruitment agencies will save money on recruitment and retention costs as employees are more likely to stay in jobs where they can afford to live comfortably.
+
+#### Healthcare and Social Assistance (NAICS 62)
+
+* Affordable housing is crucial for healthcare and social assistance workers, who often face high rent burdens. By investing in affordable housing initiatives in Columbus, GA-AL Metropolitan Area and Fresno, CA Metropolitan Area, we can ensure that these essential workers have access to safe and affordable housing options. This will not only improve their quality of life but also enhance their ability to provide quality care to the community. Affordable housing near healthcare facilities can lead to better health outcomes for both workers and patients, as it reduces stress and improves access to care. This can result in lower healthcare costs and improved public health in these metropolitan areas.
+
+### Metrics 
+
+* Rent Burden Index (RBI): is a 0-100 index scale using min-max normalization to standardize rent burden across CBSAs using 2014 as a baseline. A score of 0 indicates the lowest rent burden observed, which is a good thing, while a score of 100 represents the highest rent burden meaning too much income is being spent on rent. This metric allows for easy comparison of rent burdens across different metropolitan areas.
+
+* Instantaneous Housing Growth Score: This score measures the rate of housing growth in a metropolitan area compared to the average housing growth in 2014. A score above 100 indicates that the area is building housing at a faster rate than the 2014 average, while a score below 100 indicates slower growth. This metric helps identify areas that are actively addressing housing shortages.
+
+### Conclusion
+
+* By focusing on metropolitan areas like Columbus, GA-AL and Fresno, CA, which have demonstrated success in reducing rent burdens while experiencing population growth, we can develop effective strategies to address housing affordability across the United States. Investing in affordable housing initiatives will not only improve the quality of life for residents but also contribute to the overall economic health of these metropolitan areas. We urge policymakers to consider these metrics and examples when formulating housing policies to ensure that all residents have access to safe and affordable housing options.
 
 ------------------------------------------------------------------------
-
-This work ©2025 by iouie was initially prepared as a Mini-Project for
-STA 9750 at Baruch College. More details about this course can be found at
-[the course site](https://michael-weylandt.com/STA9750) and instructions for
-this assignment can be found at 
-[MP #02](https://michael-weylandt.com/STA9750/miniprojects/mini02.html)
