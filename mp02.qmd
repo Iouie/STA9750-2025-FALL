@@ -493,13 +493,12 @@ cali_rent_burden <- rent_burden_data |>
 
 
 
-datatable(cali_rent_burden,
+cali_table <- datatable(cali_rent_burden,
           class = "table table-striped table-hover table-dark table-sm",
           caption = "Los Angeles Rent Burden 2009-2023",
           options = list(pageLength = 15,
                          autoWidth = TRUE,
                          searching = FALSE))
-        
 ```
 * Los Angeles has seen a small increase in rent burden from 2009 to 2023, with the Rent Burden Score rising from approximately **47.26** in 2009 to **52.91** in 2023 while drastically increasing in Household Income. The rent burden has been in the range from **24%** to **26%**.
 
