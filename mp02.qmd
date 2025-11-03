@@ -477,7 +477,7 @@ rent_burden_data <- rent_burden_data |>
 * Rent burden is used to measure percentage of income spent on rent. I've standardized the metric so that 0 would be the lowest burden and 100 would be the highest in the observed data.
 
 ## Metropolitan California
-```{r, message=FALSE, warning=FALSE, results='hide'}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
 cali_rent_burden <- rent_burden_data |>
     filter(str_detect(NAME, "Los Angeles")) |>
   select( 'Year' = year,
@@ -492,19 +492,17 @@ cali_rent_burden <- rent_burden_data |>
 
 
 
-cali_table <- datatable(cali_rent_burden,
+datatable(cali_rent_burden,
           class = "table table-striped table-hover table-dark table-sm",
           caption = "Los Angeles Rent Burden 2009-2023",
           options = list(pageLength = 15,
                          autoWidth = TRUE,
                          searching = FALSE))
-
-print(cali_table)
 ```
 * Los Angeles has seen a small increase in rent burden from 2009 to 2023, with the Rent Burden Score rising from approximately **47.26** in 2009 to **52.91** in 2023 while drastically increasing in Household Income. The rent burden has been in the range from **24%** to **26%**.
 
 ##  Lowest Metro Burden Areas
-```{r, message=FALSE, warning=FALSE, results='hide'}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
 low_burden <- rent_burden_data |>
     filter(year == 2023, str_detect(NAME, "Metro")) |>
     select(
@@ -529,7 +527,7 @@ datatable(
 * The lowest rent burden score is **Bismarck, North Dakota** with a **5.27** rent burden score with residents spending only **13.7%** of their income on rent.
 
 ## Instantaneous Housing Growth
-```{r, message=FALSE, warning=FALSE, results='hide'}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
 task5_table <- POPULATION |>
   inner_join(PERMITS, by=c("year", 'GEOID' = 'CBSA'))
 
@@ -593,7 +591,7 @@ datatable(
 
 ## Rate Base Housing
 
-```{r, message=FALSE, warning=FALSE, results='hide'}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
 # Declining Pop
 permits_per_new_resident <- population_growth_5yr |>
   mutate(permits_per_new_resident = case_when(
@@ -650,7 +648,7 @@ datatable(
 * There are many different states with extremely high Rate Scores. On the other hand, Connecticut, New York, and Ohio Metro areas have some of the lowest Rate Scores.
 
 ## Composite Score
-```{r, message=FALSE, warning=FALSE, results='hide'}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
 composite_scores <- permits_per_new_resident |>
   filter(year >= 2014) |>
   mutate(composite_score = (instantaneous_score + rate_score) / 2) |>
@@ -682,7 +680,7 @@ datatable(
 
 ## Task 6: Visualization
 
-```{r, message=FALSE, warning=FALSE, results='hide'}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
 
 yimby1_data <- rent_burden_data |>
   group_by(GEOID, NAME) |>
@@ -756,7 +754,7 @@ datatable(
 ```
 * This scatter plot visualizes the relationship between early rent burden in 2014 and the change in rent burden up to 2023 for various CBSAs. The dashed lines indicate the median early rent burden and zero change in rent burden. CBSAs in the bottom-right show a desirable YIMBY characteristic of high early rent burden with a decrease over time.
 
-```{r, message=FALSE, warning=FALSE, results='hide'}
+```{r, message=FALSE, warning=FALSE,  echo=FALSE}
 # have had population growth over the study period and have had above-average housing growth during the study period.
 # finding pop growth from 2014 - 2023
 pop_for_yimby <- population_growth_5yr |>
