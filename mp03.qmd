@@ -1,6 +1,3 @@
-**This is only a basic Mini-Project Template.**
-**Delete this note and customize formatting according to your preferences and**
-**the Mini-Project instructions. Your document must start the `---` below**
 ---
 title: "Mini-Project 03 - Visualizing and Maintaining the Green Canopy of NYC"
 author: "iouie"
@@ -8,50 +5,346 @@ editor:
     mode: source
 format:
     html:
+        toc: true
         code-fold: true
 ---
 
 ## Introduction
+* Urban trees play a crucial role in enhancing the quality of life in cities by providing shade, improving air quality, and supporting biodiversity. In New York City, the distribution and health of urban trees vary significantly across different council districts. This mini-project aims to analyze the distribution of trees in NYC's council districts, identify areas with high tree mortality rates, and propose strategies for maintaining and enhancing the urban canopy.
 
-A suitable introduction goes here. In this mini-project, I intend to demonstrate
-my skills at API Use/Big Data/Geospatial Data in an analysis of Municipal Data/Spatial Analysis data.
 
-## Data Acquisition and Preparation
+## Task 1 Data Acquisition and Preparation
 
-Code related to Data Acquisition and Preparation goes here.
+Write code to download data from the NYC Open Data API or other sources, and prepare it
 
-Remember that code blocks look like this: 
+```{r message=FALSE, warning=FALSE, results='hide'}
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(sf)
+library(fs)
+library(httr2)
+library(jsonlite)
+library(glue)
+library(ggplot2)
+library(viridis)
+library(plotly)
+library(DT)
 
-```{r}
-# Your code goes in chunks like this
-library(tidyverse) # You will want this line for almost all MPs
-x <- 1 + 2 + 3
+
+# create directory mp3 if it doesn't exist
+if(!dir.exists(file.path("data", "mp03"))){
+    dir.create(file.path("data", "mp03"), showWarnings=FALSE, recursive=TRUE)
+}
+
+# download current file
+get_url <- glue("https://s-media.nyc.gov/agencies/dcp/assets/files/zip/data-tools/bytes/city-council/nycc_25c.zip")
+
+download.file(get_url, destfile = file.path("data", "mp03", "nycc_25c.zip"))
+
+# unzip
+unzip(file.path("data", "mp03", "nycc_25c.zip"), exdir = file.path("data", "mp03"))
+
+# read in data
+read_data <- st_read(file.path("data", "mp03", "nycc_25c", "nycc.shp"))
+
+#transform file to WGS 84
+transformed_data <- st_transform(read_data, crs = "WGS84")
+
+
+# Grabbing Forestry Tree Points API
+# https://data.cityofnewyork.us/resource/hn5i-inap.geojson
+
+# check if 200 resp
+
+# function to get tree data
+fetch_tree_data <- function(url){
+  mp03 <- file.path("data", "mp03")
+  limit <- 5000
+  offset <- 0
+  page <- 1
+  bool <- TRUE
+  
+  while (bool){
+  # name
+  name <- file.path(mp03, paste0("tree_data", page, ".geojson"))
+  
+  if(!file_exists(name)){
+  # build request
+    request(url) |>
+    req_url_query(`$limit` = limit,`$offset` = offset) |>
+    req_perform() |>
+    resp_body_raw() |>
+    writeBin(name)
+  }
+       
+   n_row <- if (!is.null(st_read(name, quiet = TRUE))) {
+                nrow(st_read(name, quiet = TRUE))}
+             else 0
+
+    if (n_row < limit) {
+      bool <- FALSE} 
+    else {
+      offset <- offset + limit
+      page <- page + 1}
+  }
+  
+  geo_file <- dir_ls(mp03, glob = "*.geojson")
+  sflist <- lapply(as.character(geo_file), st_read, quiet = TRUE) |>
+  lapply(mutate, planteddate = as.character(planteddate))
+  
+  res <- bind_rows(sflist)
+  
+  return(res)
+}
+
+tree <- fetch_tree_data("https://data.cityofnewyork.us/resource/hn5i-inap.geojson")
+
 ```
 
-and you can then print variables from chunks: 
 
-```{r}
-x
+## Task 3
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+
+# Number of trees in each district
+trees_sf <- st_transform(tree, crs = st_crs(transformed_data))
+
+hits <- st_intersects(transformed_data, trees_sf)
+
+transformed_data <- transformed_data |>
+  mutate(tree_count = lengths(hits))
+
+transformed_data <- transformed_data |>
+  mutate(hover = paste0("District: ", CounDist, "<br>Trees: ", tree_count))
+
+transformed_data |> group_by(CounDist) |> summarize(n = n(), do_union=FALSE)
+
+
+ tree_plot <- ggplot(transformed_data) + 
+  geom_sf(aes(fill = tree_count, text = hover), color = "black", size = 0.8) +
+   scale_fill_viridis_c(option = "viridis", direction = -1, name = "Tree density") +
+  xlab("Longitude") + 
+  ylab("Latitude") + 
+  labs(title = "NYC Trees in the City Council Districts") +
+  theme_bw()
+
+ggplotly(tree_plot, tooltip = "text")
+
 ```
 
-or inline, like this: $x$ is `r x`.
+## Task 4
+# Which council district has the most trees?
+```{r}
+most_trees <- transformed_data |>
+  filter(tree_count == max(tree_count)) |>
+  mutate(`Council District` = CounDist,
+         `Tree Count` = tree_count) |>
+  select(`Council District`, `Tree Count`)
+ 
+dt1 <- transformed_data |>
+  st_drop_geometry() |>
+  select(CounDist, tree_count)
 
-## Exploratory Analysis
+ datatable(dt1,
+    class = "table table-striped table-hover table-dark table-sm",
+    caption = "Tree Count per District",
+    options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
+```
+* The council district with the most trees is district **51** with a total of **70927** trees.
 
-Code related to Exploratory Data Analysis goes here. This may include
-exploratory graphics, instructor-provided exploratory questions, or other
-similar elements. 
+# Which council district has the highest density of trees?
 
-## Final Insights and Deliverable
+* Looking at the interactive plot above, district **51** appears to have the highest density of trees since the entire district is covered in purple.
 
-Code related to the final deliverable of the assignment goes here. 
+# Which district has highest fraction of dead trees out of all trees?
+```{r}
+tree_conditions <- st_join(trees_sf,
+                           transformed_data |> select(CounDist),
+                           join = st_within,
+                           left = TRUE) |>
+  mutate(CounDist = as.character(CounDist))
 
+counts <- tree_conditions |>
+  count(CounDist, tpcondition, name = "n") |>
+  group_by(CounDist) |>
+  mutate(total = sum(n), pct = n / total) |>
+  ungroup()
 
+dead_labels <- counts |> filter(tpcondition == "Dead")
 
+counts <- counts |> arrange(desc(pct))
+
+ggplot(counts, aes(x = fct_reorder(CounDist, total), y = n, fill = tpcondition)) + 
+  geom_col(position = "fill") +
+  geom_text(data = dead_labels,
+                aes(label = paste0("Dead: ", round(pct * 100, 2), "%")),
+                position = position_fill(vjust = 0.5),
+                color = "white",
+                size = 3) +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent_format()) + labs(x = "Council District", y = "% of trees", fill = "Condition", title = "Tree Conditions by Council District") + theme_minimal()
+
+counts_dead <- counts |>
+  st_drop_geometry() |>
+  select(CounDist, tpcondition, n,total, pct) |>
+  filter(tpcondition == "Dead") |>
+  rename(Num_Trees = n,
+         Total_Trees = total,
+         Pct_Dead = pct) |>
+  mutate(Pct_Dead = sprintf("%.2f%%", Pct_Dead * 100))
+
+ datatable(counts_dead,
+    class = "table table-striped table-hover table-dark table-sm",
+    caption = "Dead Trees Per Council District",
+    options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
+
+```
+* District **32** has the highest fraction of dead trees at **14.22%**.
+
+# What is the most common tree species in Manhattan?
+```{r}
+# get the total number of trees for each district and species
+unique_trees <- tree_conditions |>
+  st_set_geometry(NULL) |>
+  mutate(tree_type = coalesce(.data[["genusspecies"]], "UNKNOWN"), 
+         CounDist = as.integer(CounDist)) |>
+  count(CounDist, tree_type, name = "n", sort = FALSE) |>
+  arrange(CounDist, desc(n))
+
+# group the trees
+grouped_count <- unique_trees |>
+  mutate(CounDist = as.integer(CounDist),
+         district = case_when(
+           CounDist >= 1 & CounDist <= 10 ~ "Manhattan",
+           CounDist >= 11 & CounDist <= 18 ~ "Bronx",
+           CounDist >= 19 & CounDist <= 32 ~ "Brooklyn",
+           CounDist >= 33 & CounDist <= 48 ~ "Queens",
+           CounDist >= 49 & CounDist <= 51 ~ "Staten Island",
+           TRUE ~ "Unknown",
+           )) |>
+  filter(district != "Unknown") |>
+  group_by(district, tree_type) |>
+  summarise(count = sum(.data$n, na.rm = TRUE), .groups = "drop") |>
+  arrange(district, desc(count)) |>
+  filter(district == "Manhattan")
+
+ datatable(grouped_count,
+    class = "table table-striped table-hover table-dark table-sm",
+    caption = "All Trees in Manhattan District",
+    options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
+```
+
+* The most common tree species in Manhattan is the **Gleditsia triacanthos var. inermis - Thornless honeylocust** with a total of **17,311** trees.
+
+# What is the species of the tree closest to Baruch’s campus?
+```{r}
+# Function to make point from lat lon
+new_st_point <- function(lat, lon){
+  sfc <- st_sfc(st_point(c(lon, lat))) |>
+    st_set_crs("WGS84")
+  st_sf(geometry = sfc )
+}
+
+#baruch coords
+baruch_coord <- new_st_point(40.7396, -73.9832) 
+
+closest_tree <- trees_sf[st_nearest_feature(baruch_coord, trees_sf), ]$genusspecies
+
+print(closest_tree)
+```
+
+* The species of the tree closest to Baruch’s campus is **Gleditsia triacanthos var. inermis - Thornless honeylocust**.
+
+## NYC Parks Proposal
+
+### Summary
+* We are proposing a tree planting initiative in council district 32, which has the highest fraction of dead trees at 14.22%. By planting new trees in this district, we can improve the overall health of the urban forest, enhance air quality, and provide shade and aesthetic value while maintaining a nature vibe to the community.
+
+### Scope
+- Remove dead trees replace them with new saplings.
+
+- Focus on planting native species that are well-suited to the local environment.
+
+### Comparison
+
+- Bar chart comparing another district with similar tree density (31)
+
+- Neighboring district (34)
+
+- District (39)
+
+```{r}
+compare_trees <- counts_dead |>
+  filter(CounDist %in% c(31, 32, 37, 39)) |>
+  mutate(
+    district = case_when(
+      CounDist == 31 ~ "Queens 31",
+      CounDist == 32 ~ "Queens 32",
+      CounDist == 37 ~ "Queens 37",
+      CounDist == 39 ~ "Brooklyn 39",
+      TRUE ~ as.character(CounDist)
+    ),
+    Pct_Dead = as.numeric(sub("%", "", Pct_Dead)
+  )) |>
+  select(district, Pct_Dead, Num_Trees, Total_Trees)
+
+ggplot(compare_trees, aes(x = district, y = Pct_Dead, fill = district)) +
+  geom_col() +
+  geom_text(aes(label = Pct_Dead), vjust = -0.5) +
+  labs(title = "Percentage of Dead Trees in Selected Districts",
+       x = "District",
+       y = "Dead Trees(%)") +
+  theme_minimal()
+
+ggplot(compare_trees, aes(x = district, y = Total_Trees, fill = district)) +
+  geom_col() +
+  geom_text(aes(label = Total_Trees), vjust = -0.5) +
+  labs(title = "Total Number of Trees in Selected Districts",
+       x = "District",
+       y = "Total Trees") +
+  theme_minimal()
+```
+* Both **Brooklyn District 39** and **Queens District 31** have similar total # of trees as **32**, but have relatively less percentage of dead trees. **Queens District 37** is a neighboring district with a lower percentage of dead trees as well.
+
+```{r}
+chosen_districts <- unique_trees |>
+  mutate(CounDist = as.integer(CounDist)) |>
+  filter(CounDist %in% c(31, 32, 37, 39)) |>
+  group_by(CounDist, tree_type) |>
+  summarise(count = sum(.data$n, na.rm = TRUE), .groups = "drop") |>
+  arrange(CounDist, desc(count))
+
+top1_per_district <- chosen_districts %>%
+  group_by(CounDist) %>%
+  slice_max(order_by = count, n = 1, with_ties = FALSE) %>%  # with_ties = TRUE would keep ties
+  ungroup() %>%
+  mutate(
+    district_label = case_when(
+      CounDist == 31 ~ "Queens 31",
+      CounDist == 32 ~ "Queens 32",
+      CounDist == 37 ~ "Queens 37",
+      CounDist == 39 ~ "Brooklyn 39",
+      TRUE ~ as.character(CounDist)
+    ),
+    district_label = fct_reorder(district_label, count, .desc = TRUE)
+  )
+
+ggplot(top1_per_district, aes(x = district_label, y = count, fill = district_label)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = paste0(tree_type, " (", count, ")")), 
+            hjust = -0.05, size = 3) +
+  coord_flip() +
+  labs(title = "Top species by count — selected districts",
+       x = "District", y = "Highest # of Genus Species") +
+  theme_minimal() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15)))
+
+ datatable(chosen_districts,
+    class = "table table-striped table-hover table-dark table-sm",
+    caption = "Top Trees in Selected district",
+    options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
+```
+* Both **Brooklyn District 39** and **Queens District 32** have **Platanus x acerifolia - London planetree** as their most common tree species, but district 32 has higher tree death percentages. Their neighboring district, **Queens District 37** and **Queens District 31**, has **Gleditsia triacanthos var. inermis - Thornless honeylocust** as the most common species. If there were more of what District 31 and District 37 had, perhaps District 32 could reduce its tree death rate.
 ------------------------------------------------------------------------
-
-This work ©2025 by iouie was initially prepared as a Mini-Project for
-STA 9750 at Baruch College. More details about this course can be found at
-[the course site](https://michael-weylandt.com/STA9750) and instructions for
-this assignment can be found at 
-[MP #03](https://michael-weylandt.com/STA9750/miniprojects/mini03.html)
