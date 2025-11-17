@@ -31,6 +31,7 @@ library(ggplot2)
 library(viridis)
 library(plotly)
 library(DT)
+library(htmlwidgets)
 
 
 # create directory mp3 if it doesn't exist
@@ -130,9 +131,13 @@ transformed_data |> group_by(CounDist) |> summarize(n = n(), do_union=FALSE)
   labs(title = "NYC Trees in the City Council Districts") +
   theme_bw()
 
-ggplotly(tree_plot, tooltip = "text")
+p <- ggplotly(tree_plot, tooltip = "text")
+
+saveWidget(as_widget(p), "docs/tree_plot.html", selfcontained = TRUE)
 
 ```
+
+<iframe src="tree_plot.html" style="width:100%; height:80vh; border:0;"></iframe>
 
 ## Task 4
 # Which council district has the most trees?
@@ -347,4 +352,5 @@ ggplot(top1_per_district, aes(x = district_label, y = count, fill = district_lab
     options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
 ```
 * Both **Brooklyn District 39** and **Queens District 32** have **Platanus x acerifolia - London planetree** as their most common tree species, but district 32 has higher tree death percentages. Their neighboring district, **Queens District 37** and **Queens District 31**, has **Gleditsia triacanthos var. inermis - Thornless honeylocust** as the most common species. If there were more of what District 31 and District 37 had, perhaps District 32 could reduce its tree death rate.
+
 ------------------------------------------------------------------------
