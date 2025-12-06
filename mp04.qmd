@@ -1,0 +1,453 @@
+---
+title: "Mini-Project 04 - Just the Fact(-Check)s, Ma'am!"
+author: "Stanley Louie"
+editor:
+    mode: source
+format:
+    html:
+        toc: true
+        code-fold: true
+---
+
+## 1) Introduction
+
+A suitable introduction goes here. In this mini-project, I intend to demonstrate
+my skills at Web Scraping/Statistical Inference in an analysis of Official Statistics/Economic Data/Time Series data.
+
+## 2) Data Acquisition
+
+Webscraping
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(rvest)
+library(httr2)
+library(purrr)
+library(lubridate)
+library(stringr)
+library(readr)
+library(ggplot2)
+library(DT)
+library(infer)
+library(scales)
+
+if(!dir.exists(file.path("data", "mp04"))) {
+  dir.create(file.path("data", "mp04"), showWarnings = FALSE, recursive = TRUE)
+}
+
+
+#1 - Get the URL
+base_url <- "https://data.bls.gov/pdq/SurveyOutputServlet"
+
+#2 - Grab Payload
+form_list <- list(
+    request_action = "get_data",
+    reformat = "true",
+    from_results_page = "true",
+    from_year = "1979",
+    to_year = "2025",
+    Go.x = "11",
+    Go.y = "10",
+    initial_request = "false",
+    data_tool = "surveymost",
+    series_id = "CES0000000001",
+    year_options = "specific_years"
+  ) 
+#3 - Get table
+ces_req <- request(base_url) |>
+  req_method("POST") |>
+  req_body_form(!!!form_list) |>
+  req_perform() |>
+  resp_body_html() |>
+  html_elements("#table0") |>
+  html_table(fill = TRUE)
+
+head(ces_req)
+
+#4 -  Clean table and convert
+ces_clean <- ces_req[[1]] |>
+  pivot_longer(cols = -Year, names_to = "month", values_to = "level") |>
+  mutate(
+    month = str_squish(str_remove_all(month, "\\*")),
+    
+    date = ym(paste(Year, month)),
+    
+    level = parse_number(level)
+  ) |>
+  drop_na(level, date) |>
+  arrange(date) |>
+  select(date, month, level)
+
+head(ces_clean)
+```
+
+## 3) CES Revisions
+
+We are downloading the CES Non-Farm Payroll Employment numbers.
+
+
+```{r}
+#1 - Request headers
+resp <- request("https://www.bls.gov/web/empsit/cesnaicsrev.htm") |>
+  req_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
+  ) |>
+req_headers(
+  "Accept" = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+  "Accept-Language" = "en-US,en;q=0.9",
+  "Cache-Control" = "max-age=0",
+  "Referer" = "https://michael-weylandt.com/",
+  "Cookie" = "_ga=GA1.1.2096679178.1761100449; nmstat=46b4296a-7687-2f1d-769d-eb9152d5657c"
+) |>
+  req_perform() |>
+  resp_body_html()
+
+#2 - Get Year Function
+get_year <- function(year, html) {
+  
+  tbl_id <- paste0("#", year)
+  
+  tbl <- html |> 
+    html_element(tbl_id)
+  
+  if(is.na(tbl_id)) return(NULL)
+  
+  tbl <- tbl |>
+    html_element("tbody") |>
+    html_table(fill = TRUE, header = FALSE)
+  
+  tbl |> 
+    slice(1:12) |>
+    select(
+      month = 1,
+      original = 3,
+      final = 5
+    ) |>
+    mutate(
+      month = str_trim(month),
+      date = ym(paste(year, month)),
+      original = as.numeric(gsub("[^0-9-]", "", original)),
+      final = as.numeric(gsub("[^0-9-]", "", final)),
+      revision = final - original
+    ) |>
+    drop_na()
+}
+
+#3 - Apply Revision
+ces <- map(1979:2025, ~get_year(.x, resp)) |>
+  list_rbind() |>
+  select(date, original, final, revision)
+
+head(ces)
+```
+
+## 4) Data Integration and Exploration
+Now we join these 2 tables together and find some interesting insights. Let's look at the unemployment levels from 1979 until 2025.
+```{r}
+ces_full <- full_join(ces_clean, ces, by = "date") |>
+  arrange(date) |>
+    select(-month)
+
+# grab year and unemployment levels
+ces_clean <- ces_clean |>
+  mutate(date = as.Date(date, format = "%Y-%m-%d"),
+         year = year(date)) |>
+  group_by(year) |>
+  summarize(
+    employment_level = sum(level, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(ces_clean, aes(x = year, y = employment_level)) +
+  geom_line(color = "steelblue") +
+  geom_point(color = "steelblue") +
+  labs(
+    title = "Total Nonfarm Employment Over Time",
+    x = "Year",
+    y = "Total Nonfarm Employment Level(Millions)"
+  ) +
+  theme_minimal()
+
+
+datatable(ces_clean,
+           class = "table table-striped table-hover table-dark table-sm",
+          caption="Total Nonfarm Employment overtime",
+          options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE)
+          )
+```
+
+### 4.1) What and when were the largest revisions (positive and negative in CES history)?
+```{r}
+p1 <- ggplot(ces_full, aes(x = date, y = revision)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "CES Revisions Over Time",
+    x = "Date",
+    y = "Revision (Final - Original)"
+  ) +
+  theme_minimal()
+
+ces_tbl1 <- ces_full |>
+  select(date, original, final, revision) |>
+  arrange(desc(abs(revision))) |>
+  drop_na()
+
+print(p1)
+
+datatable(ces_tbl1,
+           class = "table table-striped table-hover table-dark table-sm",
+          caption="Table of revisions over time",
+          options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE)
+          )
+
+```
+
+* The largest negative revision occurred in **March 2020**, with a revision of **-672,000** jobs which is likely due to the initial impact of the COVID-19 pandemic on employment figures. The largest positive revision occurred in **November 2020**, with a revision of **437,000** jobs, reflecting a significant upward adjustment as the economy began to recover from the initial shock of the pandemic.
+
+### 4.2) What fraction of CES revisions are positive in each decade?
+
+```{r}
+ces_tbl2 <- ces_full |>
+  mutate(
+    decade = case_when(
+      year(date) < 1990 ~ "1980s",
+      year(date) < 2000 ~ "1990s",
+      year(date) < 2010 ~ "2000s",
+      year(date) < 2020 ~ "2010s",
+      TRUE ~ "2020s"
+    )
+  ) |>
+  group_by(decade) |>
+  summarise(
+    num_revisions = n(),
+    num_revisions_positive = sum(revision > 0, na.rm = TRUE),
+    pct_pos = round(num_revisions_positive / num_revisions * 100, 2)
+  ) |>
+  arrange(decade)
+
+datatable(ces_tbl2,
+           class = "table table-striped table-hover table-dark table-sm",
+          caption="Positive Revisions in each decade",
+          options = list(pageLength = 5, searching = FALSE, lengthChange = FALSE)
+          )
+```
+
+* The **1990's** has the highest fraction of positive revisions at **69.17%**, while the **2020's** has the lowest at **44.93%**. This is a worrying trend as it indicates that more recent CES data revisions tend to be negative, suggesting an overall economic downturn or possibly a recession.
+
+### 4.3) How has the relative CES revision magnitude (absolute value of revision amount over final estimate) changed over time?
+```{r}
+ces_tbl3 <- ces_full |>
+  mutate(
+    rel_revision = abs(revision / final),
+    rel_revision = if_else(rel_revision == Inf, NA_real_, rel_revision)
+  ) 
+  
+
+p2 <- ggplot(ces_tbl3, aes(x = date, y = rel_revision)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "CES Revisions Magnitude Over Time",
+    x = "Date",
+    y = "Revision Magnitude abs(revision / final)"
+  ) +
+  theme_minimal()
+
+print(p2)
+
+datatable(ces_tbl3,
+           class = "table table-striped table-hover table-dark table-sm",
+          caption="Revisions Magnitude over time",
+          options = list(pageLength = 5, searching = FALSE, lengthChange = FALSE)
+          )
+```
+
+* The relative revision magnitude appears to have increased during periods of economic uncertainty, such as the early 2000s recession and the COVID-19 pandemic in 2020. This suggests that during times of economic stress, the initial CES estimates are more likely to be significantly revised as more accurate data becomes available. In the 2020's, it looks to be rising due to economic uncertainty.
+
+### 4.4) How has the absolute CES revision as a percentage of overall employment level changed over time?
+
+```{r}
+ces_tbl4 <- ces_full |>
+  mutate(
+    pct_revision = abs(round(revision / final * 100,2)),
+    pct_revision = if_else(pct_revision == Inf, NA_real_, pct_revision)
+  )
+
+p3 <- ggplot(ces_tbl4, aes(x = date, y = pct_revision)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "CES Revision Percent over Time",
+    x = "Date",
+    y = "Revision Percentage over Time"
+  ) +
+  theme_minimal()
+
+print(p3)
+
+datatable(ces_tbl4,
+           class = "table table-striped table-hover table-dark table-sm",
+          caption="Revisions Percentage over Time",
+          options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE)
+          )
+```
+
+* Other than the outlier from **1990's** and the **2020's**,the absolute CES revision as a percentage has been relatively stable until recent years where it appears have spiked. This is also around the same time when Trump fired the Labor statistics chief, Erika McEntarfer.
+
+### 4.5) Are there any months that systematically have larger or smaller CES revisions?
+```{r}
+ces_tbl5 <- ces_full |>
+    mutate(
+    date = as.Date(date),
+    year = year(date),
+    month = month(date),                        
+    month_name = factor(month.abb[month],       
+                        levels = month.abb),
+    abs_rev = abs(revision),
+    final_abs = abs(final),
+    final_safe = if_else(final_abs < 1e-8, NA_real_, final_abs),
+    abs_rev_pct = abs_rev / final_safe * 100,
+    abs_rev_pct_capped = pmin(abs_rev_pct, 1000)
+  ) 
+
+p4 <- ggplot(ces_tbl5, aes(x = month_name, y = abs_rev_pct_capped)) +
+  geom_boxplot(outlier.colour = "grey50", na.rm = TRUE) +
+  geom_jitter(width = 0.15, alpha = 0.3, size = 0.8, na.rm = TRUE) +
+  labs(x = "Month", y = "Absolute revision (% of final)", title = "CES absolute revision by month") +
+  theme_minimal()
+
+print(p4)
+```
+* Looking at the box plot, it appears that **September** have a larger CES revision. That's relatively close to election month, perhaps the numbers are spiked up to make a re-election more favorable. **December** seems to have a smaller revision within the boxplot.
+
+### 4.6) How large is the average CES revision in absolute terms? In terms of percent of that month’s CES level?
+
+```{r}
+ces_tbl6 <- ces_tbl5 |>
+   filter(is.finite(abs_rev_pct)) %>% 
+  group_by(month, month_name) %>%
+  summarise(
+    n = n(),
+    n_years = n_distinct(year(date)),
+    mean_pct = mean(abs_rev_pct, na.rm = TRUE),
+    median_pct = median(abs_rev_pct, na.rm = TRUE),
+    sd_pct = sd(abs_rev_pct, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(month) %>%
+  mutate(
+    mean_pct_round = round(mean_pct, 2),
+    median_pct_round = round(median_pct, 2),
+    mean_label = paste0(formatC(mean_pct_round, format = "f", digits = 2), "%")
+  )
+
+p5 <- ggplot(ces_tbl6, aes(x = month_name, y = mean_pct)) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = mean_label), vjust = -0.5, size = 3) +
+  labs(x = "Month", y = "Average absolute revision (%)",
+       title = "Average absolute CES revision by calendar month") +
+  theme_minimal()
+
+print(p5)
+```
+* **September** has the highest and **November** has the lowest.
+
+## 5) Statistical Inferences
+### 5.1) Is the average revision significantly different from zero?
+
+```{r}
+# Prep data
+
+ces_prep <- ces_full |>
+  mutate(
+  date = as.Date(date),
+  year = year(date),
+  is_negative = if_else(!is.na(revision), revision < 0, NA),
+  pre2000 = if_else(year < 2000, "pre", "post"),
+  )
+
+#t=test
+t.test(ces_prep$revision, mu = 0, alternative = "two.sided")
+```
+
+* The one-sample t-test shows increase in initial employment by 11,475 jobs per month. Since the p-value is 0.00132, which is less than the significance level of 0.05, we reject the null hypothesis and conclude that there is a statistically significant difference from zero in the average CES revision.
+
+### 5.2) Has the fraction of negative revisions increased post-2000?
+```{r}
+x_pre  <- sum(ces_prep$is_negative == 1 & ces_prep$pre2000 == "pre",  na.rm = TRUE)
+n_pre  <- sum(!is.na(ces_prep$is_negative) & ces_prep$pre2000 == "pre")
+x_post <- sum(ces_prep$is_negative == 1 & ces_prep$pre2000 == "post", na.rm = TRUE)
+n_post <- sum(!is.na(ces_prep$is_negative) & ces_prep$pre2000 == "post")
+
+prop.test(x = c(x_pre, x_post), n = c(n_pre, n_post), alternative = "less", correct = FALSE)
+```
+
+* The proportion of negative revisions rose from 40.48% before 2000 to 44.30% after 2000 (3.82% increase), which isn't a significant difference. Given that X-squared is .8275, we find that the z- value is .9097 (sqrt(x-squared)) which is far from the z-value=1.96 of a two-sided test. The p-value is also greater than 0.5 so there is insufficient evidence to conclude that the fraction of negative revisions has increased post-2000.
+
+## 6) Fact Check BLS Revisions
+We are now going to look at claims politicians have made about CES revisions after the recent firing of Dr. McEntarfer using [Politifacts](https://www.politifact.com/) and their scale.
+
+**TRUE** - The statement is accurate and there is nothing significant missing.  
+
+**MOSTLY TRUE** - The statement is accurate but needs clarification or additional information.  
+
+**HALF TRUE** - The statement is partially accurate but leaves out important details or takes things out of context. 
+
+**MOSTLY FALSE** - The statement contains some element of truth but ignores critical facts that would give a different impression.  
+
+**FALSE** - The statement is not accurate.  
+
+**PANTS ON FIRE** - The statement is not accurate and makes a ridiculous claim.
+
+### 6.1) Claim 1: "Donald Trump claims the Biden Administration padded the March 2024 jobs numbers by 818,000 jobs."
+
+> "MASSIVE SCANDAL! The Harris-Biden Administration has been caught fraudulently manipulating Job Statistics to hide the true extent of the Economic Ruin they have inflicted upon America. New Data from the Bureau of Labor Statistics shows that the Administration PADDED THE NUMBERS with an extra 818,000 Jobs that DO NOT EXIST, AND NEVER DID." - Trump [Truth Social](https://www.politifact.com/factchecks/2023/may/10/viral-image/trump-claims-biden-administration-padded-jobs-nu/)
+
+```{r}
+# Calculate total revision of March 2024
+ces_march_2024 <- ces_full |>
+  filter(date == as.Date("2024-03-01"))
+
+ces_2024 <- ces_full |>
+  filter(year(date) == 2024) |>
+  mutate(
+    highlight = if_else(year(date) == 2024 & month(date) == 3, "March 2024", "Other Months")
+  )
+
+ggplot(ces_2024, aes(x = date, y = final, fill = highlight)) +
+  geom_col() +
+  scale_fill_manual(values= c("Other" = "black", "March 2024" = "green"))
+  labs(
+    title = "CES Revisions in 2024",
+    x = "Date",
+    y = "Final # Employment(thousands)"
+  ) +
+  theme_minimal() +
+  scale_y_continuous(labels = comma)
+
+datatable(ces_march_2024,
+           class = "table table-striped table-hover table-dark table-sm",
+          caption="March 2024 data",
+          options = list(pageLength = 1, searching = FALSE, lengthChange = FALSE)
+          )
+```
+
+* As we can see from the data, the initial employment number for March 2024 was **303,000**, which was later revised to **310,000**, far from the claim of padding the numbers with an extra 818,000 jobs. Therefore, this claim is rated as **PANTS ON FIRE**.
+
+### 6.2) Claim 2: There has been more negative revisions post 2000's era than pre 2000's era.
+
+> "Since the 2000s, we’ve seen more negative BLS revisions than before — the post‑2000 era shows a clear downward tilt in the revisions" - Fake Politician 1
+
+* **Null Hypothesis H0**: p_post <= p_pre
+* **Alternative Hypothesis H1**: : p_post > p_pre
+
+* From the t-test we conducted earlier, the negative revision rose from 40.48% pre 2000s to 44.30% after 2000s. But there's not sufficient evidence to conclude that the fraction of negative revisions has increased post-2000 since there's still a lot of time left.  Therefore, this claim is rated as **HALF TRUE**.
+
+------------------------------------------------------------------------
+
+This work ©2025 by Iouie was initially prepared as a Mini-Project for
+STA 9750 at Baruch College. More details about this course can be found at
+[the course site](https://michael-weylandt.com/STA9750) and instructions for
+this assignment can be found at 
+[MP #04](https://michael-weylandt.com/STA9750/miniprojects/mini04.html)
