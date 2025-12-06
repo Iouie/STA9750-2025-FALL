@@ -11,14 +11,13 @@ format:
 
 ## 1) Introduction
 
-A suitable introduction goes here. In this mini-project, I intend to demonstrate
-my skills at Web Scraping/Statistical Inference in an analysis of Official Statistics/Economic Data/Time Series data.
+We are intending to look at the CES revision dating from 1979 to 2025 and see if there are any patterns in the revisions. We will also fact-check some claims made by politicians regarding the CES revisions.
 
 ## 2) Data Acquisition
 
-Webscraping
+We are acquiring data from the Bureau of Labor Statistics (BLS) website. The data consists of two parts: the total employment data and the revisions data.
 
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 library(dplyr)
 library(tidyr)
 library(rvest)
@@ -87,7 +86,7 @@ head(ces_clean)
 We are downloading the CES Non-Farm Payroll Employment numbers.
 
 
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 #1 - Request headers
 resp <- request("https://www.bls.gov/web/empsit/cesnaicsrev.htm") |>
   req_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
@@ -143,7 +142,7 @@ head(ces)
 
 ## 4) Data Integration and Exploration
 Now we join these 2 tables together and find some interesting insights. Let's look at the unemployment levels from 1979 until 2025.
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 ces_full <- full_join(ces_clean, ces, by = "date") |>
   arrange(date) |>
     select(-month)
@@ -177,7 +176,7 @@ datatable(ces_clean,
 ```
 
 ### 4.1) What and when were the largest revisions (positive and negative in CES history)?
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 p1 <- ggplot(ces_full, aes(x = date, y = revision)) +
   geom_line() +
   geom_point() +
@@ -207,7 +206,7 @@ datatable(ces_tbl1,
 
 ### 4.2) What fraction of CES revisions are positive in each decade?
 
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 ces_tbl2 <- ces_full |>
   mutate(
     decade = case_when(
@@ -236,7 +235,7 @@ datatable(ces_tbl2,
 * The **1990's** has the highest fraction of positive revisions at **69.17%**, while the **2020's** has the lowest at **44.93%**. This is a worrying trend as it indicates that more recent CES data revisions tend to be negative, suggesting an overall economic downturn or possibly a recession.
 
 ### 4.3) How has the relative CES revision magnitude (absolute value of revision amount over final estimate) changed over time?
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 ces_tbl3 <- ces_full |>
   mutate(
     rel_revision = abs(revision / final),
@@ -267,7 +266,7 @@ datatable(ces_tbl3,
 
 ### 4.4) How has the absolute CES revision as a percentage of overall employment level changed over time?
 
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 ces_tbl4 <- ces_full |>
   mutate(
     pct_revision = abs(round(revision / final * 100,2)),
@@ -296,7 +295,7 @@ datatable(ces_tbl4,
 * Other than the outlier from **1990's** and the **2020's**,the absolute CES revision as a percentage has been relatively stable until recent years where it appears have spiked. This is also around the same time when Trump fired the Labor statistics chief, Erika McEntarfer.
 
 ### 4.5) Are there any months that systematically have larger or smaller CES revisions?
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 ces_tbl5 <- ces_full |>
     mutate(
     date = as.Date(date),
@@ -323,7 +322,7 @@ print(p4)
 
 ### 4.6) How large is the average CES revision in absolute terms? In terms of percent of that month’s CES level?
 
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 ces_tbl6 <- ces_tbl5 |>
    filter(is.finite(abs_rev_pct)) %>% 
   group_by(month, month_name) %>%
@@ -356,7 +355,7 @@ print(p5)
 ## 5) Statistical Inferences
 ### 5.1) Is the average revision significantly different from zero?
 
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 # Prep data
 
 ces_prep <- ces_full |>
@@ -374,7 +373,7 @@ t.test(ces_prep$revision, mu = 0, alternative = "two.sided")
 * The one-sample t-test shows increase in initial employment by 11,475 jobs per month. Since the p-value is 0.00132, which is less than the significance level of 0.05, we reject the null hypothesis and conclude that there is a statistically significant difference from zero in the average CES revision.
 
 ### 5.2) Has the fraction of negative revisions increased post-2000?
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 x_pre  <- sum(ces_prep$is_negative == 1 & ces_prep$pre2000 == "pre",  na.rm = TRUE)
 n_pre  <- sum(!is.na(ces_prep$is_negative) & ces_prep$pre2000 == "pre")
 x_post <- sum(ces_prep$is_negative == 1 & ces_prep$pre2000 == "post", na.rm = TRUE)
@@ -404,7 +403,7 @@ We are now going to look at claims politicians have made about CES revisions aft
 
 > "MASSIVE SCANDAL! The Harris-Biden Administration has been caught fraudulently manipulating Job Statistics to hide the true extent of the Economic Ruin they have inflicted upon America. New Data from the Bureau of Labor Statistics shows that the Administration PADDED THE NUMBERS with an extra 818,000 Jobs that DO NOT EXIST, AND NEVER DID." - Trump [Truth Social](https://www.politifact.com/factchecks/2023/may/10/viral-image/trump-claims-biden-administration-padded-jobs-nu/)
 
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 # Calculate total revision of March 2024
 ces_march_2024 <- ces_full |>
   filter(date == as.Date("2024-03-01"))
@@ -445,9 +444,3 @@ datatable(ces_march_2024,
 * From the t-test we conducted earlier, the negative revision rose from 40.48% pre 2000s to 44.30% after 2000s. But there's not sufficient evidence to conclude that the fraction of negative revisions has increased post-2000 since there's still a lot of time left.  Therefore, this claim is rated as **HALF TRUE**.
 
 ------------------------------------------------------------------------
-
-This work ©2025 by Iouie was initially prepared as a Mini-Project for
-STA 9750 at Baruch College. More details about this course can be found at
-[the course site](https://michael-weylandt.com/STA9750) and instructions for
-this assignment can be found at 
-[MP #04](https://michael-weylandt.com/STA9750/miniprojects/mini04.html)
