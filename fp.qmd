@@ -1,0 +1,14 @@
+---
+title: "Individual Report: Streaming Service Music Trends"
+author: "Stanley Louie"
+editor:
+    mode: source
+format:
+    html:
+        toc: true
+        code-fold: true
+---
+
+## Introduction
+
+Music has been an integral part of human culture for centuries, evolving through various genres and styles and one of the few mediums that connect people across different backgrounds. In the past years, the rise of digital streaming services has revolutionized the way we consume music, leading to significant changes in listening habits and industry dynamics. As the consumption of music becomes increasingly digital and data-driven, it raises an intriguing question: **what factors contribute to the popularity of songs of streaming platforms?**
