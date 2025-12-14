@@ -12,3 +12,71 @@ format:
 ## Introduction
 
 Music has been an integral part of human culture for centuries, evolving through various genres and styles and one of the few mediums that connect people across different backgrounds. In the past years, the rise of digital streaming services has revolutionized the way we consume music, leading to significant changes in listening habits and industry dynamics. As the consumption of music becomes increasingly digital and data-driven, it raises an intriguing question: **what factors contribute to the popularity of songs of streaming platforms?**
+
+Understanding the drivers of song popularity is beneficial for artists, producers, and streaming services alike. Artists can tailor their music to better resonate with audiences, producers can make informed decisions about which songs to promote, and streaming services can enhance user experience by curating personalized playlists. Platforms like **Spotify**, **Apple Music**, and **YouTube Music** have become dominant players in the digital music industry, each with its unique algorithms and user demographics.
+
+One intriguing factor in the music industry is the role of **featured artists**. A **featured artist* is an artist who performs a supporting role on a track, often contributing vocals or instrumental elements. The presence of a featured artist can significantly impact a song's popularity, as it may attract fans from both the main and featured artists, thereby expanding the song's reach. Additionally, collaborations between artists can lead to unique musical styles and increased media attention, further boosting a song's visibility.
+
+In this report, I will explore the factors that influence the popularity of songs by analyzing data from [**Billboard Hot 100**](https://www.billboard.com/charts/hot-100/). The Billboard Hot 100 chart ranks the most popular songs in the United States based on a combination of sales, radio airplay, and streaming data. By examining various attributes of songs that have achieved high rankings on this chart, I aim to identify patterns and trends that contribute to their success.
+
+
+This report focuses on understanding the influence of featured vs non-featured artists on song popularity, as well as other factors such as instances, peak position, time on chart, and consecutive weeks. By analyzing these elements, I hope to uncover insights that can inform strategies for artists and streaming services to enhance their offerings and better connect with audiences in the ever-evolving landscape of digital music consumption.
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+# Load necessary libraries
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(vroom)
+library(lubridate)
+library(stringr)
+library(ggplot2)
+library(scales)
+library(DT)
+```
+
+## Data Loading and Preparation
+
+For this analysis, I utilized the **Billboard Hot 100** dataset, which contains information about songs that have appeared on the Billboard Hot 100 chart since 1958 til August 2025. The dataset is posted by Github user [**HipsterVizNinja**](https://github.com/HipsterVizNinja/random-data). 
+
+The dataset includes:
+
+> **chart_position**: The position of the song for the given chart date.  
+> **chart_date**: The date of the chart that was released.  
+> **song**: The name of the song.  
+> **performer**: The performer of the song.  
+> **song_id**: The concatenation of song and performer.  
+> **instance**: The number of times the song has returned to the chart after more than 1 week off the chart.  
+> **time_on_chart**: The running count of weeks (all-time) a song_id has been on chart.  
+> **consecutive_weeks**: How many weeks the song_id has been on chart consecutively.  
+> **previous_week**: What the chart_position was for the previous week.  
+> **peak_position**: All-time best peak position for song_id.  
+> **worst_position**: All-time worst position for song_id.  
+> **chart_debut**: Date of first instance for song_id.  
+> **chart_url**: Billboard URL of song on their website.
+
+HipsterVizNinja was kind enough to provide a clean csv of the dataset, which I directly imported into my R environment using the `vroom` package for efficient data loading. I've also attached the data table without any cleaning.
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+if(!dir.exists(file.path("data", "fp"))){
+    dir.create(file.path("data", "fp"), showWarnings=FALSE, recursive=TRUE)
+}
+
+#url for dataset
+url <- "https://raw.githubusercontent.com/HipsterVizNinja/random-data/refs/heads/main/Music/hot-100/Hot%20100.csv"
+
+#read in dataset from github
+BILLBOARD_HOT100 <- vroom(url)
+
+#Limit the dataset to only 50 rows for display purposes
+BILLBOARD_HOT100_limited <- BILLBOARD_HOT100[1:(10 * 5), ]
+
+#datatable for uncleaned billboard
+ datatable(BILLBOARD_HOT100_limited,
+    class = "table table-striped table-hover table-dark table-sm",
+    caption = "Billboard Hot 100 Uncleaned Dataset- First 5 pages",
+    options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
+```
+
+
+----------------------
