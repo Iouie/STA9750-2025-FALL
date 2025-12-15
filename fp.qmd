@@ -293,6 +293,11 @@ artist_aggregated <- top_performers_scores_combined |>
     weighted_popularity_score = round(avg_popularity_score * log10(num_songs + 1),2)  # Weight by log of song count
   ) |>
   arrange(desc(weighted_popularity_score))
+
+ datatable(artist_aggregated,
+    class = "table table-striped table-hover table-dark table-sm",
+    caption = "Artists and their Weighted Score",
+    options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
 ```
 
 After weighing scores based on song count, we find that **Post Malone** tops the list with a weighted popularity score of **0.52**, followed by **Maroon 5** with **0.48** and **Ed Sheeran** with **0.45**. This indicates that these artists not only have high average popularity scores but also a substantial number of songs on the Billboard Hot 100, reflecting their widespread appeal and consistent success in the music industry during the 2015-2019 period. I'm not surprised because til this day, I still have their songs on my Spotify playlist.
@@ -306,9 +311,10 @@ ggplot(artist_aggregated, aes(x = num_songs, y = avg_popularity_score)) +
   labs(
     title = "Number of Songs vs. Average Popularity Score",
     x = "Number of Songs",
-    y = "Average Popularity Score"
+    y = "Average Popularity Score 2015-2019"
   ) +
   theme_minimal()
 ```
 This scatterplot illustrates the relationship between the number of songs an artist has on the Billboard Hot 100 and their average popularity score. The black represents a simple regression low, which looks relatively flat. This suggests that there is no strong correlation between the number of songs an artist has and their average popularity score. In other words, having more songs on the chart does not necessarily guarantee a higher average popularity score. In fact, it looks like having more songs hurt an artist's popularity score. This indicates that factors other than sheer quantity, such as song quality, marketing strategies, and audience engagement, play significant roles in determining an artist's popularity on the Billboard Hot 100.
+
 ----------------------
