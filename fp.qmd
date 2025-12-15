@@ -55,9 +55,9 @@ The dataset includes:
 > **chart_debut**: Date of first instance for song_id.  
 > **chart_url**: Billboard URL of song on their website.
 
-HipsterVizNinja was kind enough to provide a clean csv of the dataset, which I directly imported into my R environment using the `vroom` package for efficient data loading. I've also attached the data table without any cleaning.
+HipsterVizNinja was kind enough to provide a clean csv of the dataset, which I directly imported into my R environment using the `vroom` package for efficient data loading. I've also attached the data table without any cleaning. Since there are over 350,000 rows, I've limited the display to the first 50 rows for better readability.
 
-```{r message=FALSE, warning=FALSE, results='hide'}
+```{r message=FALSE, warning=FALSE}
 if(!dir.exists(file.path("data", "fp"))){
     dir.create(file.path("data", "fp"), showWarnings=FALSE, recursive=TRUE)
 }
@@ -69,14 +69,246 @@ url <- "https://raw.githubusercontent.com/HipsterVizNinja/random-data/refs/heads
 BILLBOARD_HOT100 <- vroom(url)
 
 #Limit the dataset to only 50 rows for display purposes
-BILLBOARD_HOT100_limited <- BILLBOARD_HOT100[1:(10 * 5), ]
+BILLBOARD_HOT100_limited <- tail(BILLBOARD_HOT100,50)
+ 
 
 #datatable for uncleaned billboard
  datatable(BILLBOARD_HOT100_limited,
     class = "table table-striped table-hover table-dark table-sm",
     caption = "Billboard Hot 100 Uncleaned Dataset- First 5 pages",
     options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
+ 
 ```
 
 
+As we can see, there are rows with duplicated songs because they've been on the top 100 week after week. What I'm interested in is the latest chart_date because that will give me the most up-to-date metrics from time_on_chart and consecutive weeks. We are also only interested in chart_dates from **2015 to 2019** since this is the time period where the music industry saw a significant shift towards streaming services as the primary mode of music consumption. This will shrink the data from over 350,000 rows to 2,515 unique songs. Since we're looking at featured vs non-featured songs, I've added a column called **featured_nonfeatured** that classifies songs based on whether they have a featured artist or not. This is determined by checking if the performer string contains keywords like "feat.", "featuring", or "ft." using regex.
+
+```{r message=FALSE, warning=FALSE}
+
+# Grabbing important data I need for analysis
+billboard_nodupes <- BILLBOARD_HOT100 |>
+  # (1) filter billboard from 2015-2019
+  filter(between(chart_date, as.Date("2015-01-01"), as.Date("2019-12-31"))) |>
+  
+  # (2) get latest chart_date for each song_id
+  group_by(song_id) |>
+  slice_max(order_by = time_on_chart, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  
+  # (3) get relevant columns and create featured_nonfeatured column
+  select(chart_position,chart_date, song, performer, instance, time_on_chart, consecutive_weeks, peak_position,) |>   mutate(
+    featured_nonfeatured = case_when(
+      is.na(performer) ~ NA_character_,
+      str_detect(performer, regex("\\b(feat\\.?|featuring|ft\\.)\\b", ignore_case = TRUE)) ~ "featured",
+      TRUE ~ "nonfeatured"))
+
+#datatable for cleaned billboard
+ datatable(billboard_nodupes,
+    class = "table table-striped table-hover table-dark table-sm",
+    caption = "Billboard Hot 100 Cleaned",
+    options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
+```
+
+## Data Exploration
+
+To begin our exploration, let's first examine the distribution of featured vs non-featured songs in our cleaned dataset. This will give us an idea of how prevalent collaborations are in the Billboard Hot 100 during our specified time frame.
+
+### Featured vs Non-Featured Songs
+```{r results='hide'}
+# Count of featured vs non-featured songs
+billboard_nodupes |> count(featured_nonfeatured)
+```
+Featured_Nonfeatured| Num_Songs
+-----|-----:
+Featured|680
+Nonfeatured|1,835
+
+From the table above, we can see that out of the 2,515 unique songs in our dataset from 2015 to 2019, there are 680 songs with featured artists and 1,835 songs without featured artists. This indicates that collaborations are quite common in popular music during this period, with approximately 27% of the songs featuring guest artists.
+
+
+### Most Popular Artists
+```{r}
+# (1) Clean performer names by removing featured artist info using regex
+top_performers <- billboard_nodupes |>
+mutate(performer_cleaned = str_replace(performer, 
+                                regex("\\s*(ft\\.|feat\\.|featuring|with).*", ignore_case = TRUE), ""))
+# (2) If song contains multiple primary performers, split them
+split_data <- top_performers |>
+  separate_rows(performer_cleaned, sep = "\\s*,\\s*|\\s*&\\s*")
+
+# (3) Count # of Songs and list top 10
+top_artists <- split_data |>
+  group_by(performer_cleaned) |>
+  summarise(num_songs = n(), .groups = "drop") |>
+  arrange(desc(num_songs))
+
+# using this b/c I need the top data for later
+top_artists_10 <- top_artists |>
+  slice_max(num_songs, n = 10)
+
+#datatable for top 10 artists
+ datatable(top_artists_10,
+    class = "table table-striped table-hover table-dark table-sm",
+    caption = "Billboard Hot 100 Top 10 Performers",
+    options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
+```
+After splitting the performers using regex, **Drake** is unsurprisingly number one with 107 songs on the Billboard Hot 100 from 2015 to 2019, followed by **Fure** with 53 songs and **The Weeknd** with 43 songs. This highlights the dominance of these artists in the music industry during this period, showcasing their ability to consistently produce popular tracks that resonate with a wide audience.
+
+### Creating Metrics
+
+Since **The Billboard Hot 100** doesn't provide a direct popularity score, I will create a composite popularity metric based on the following factors:
+
+> **Time on Chart:** 40%  
+> **Peak Position:** 25%  
+> **Consecutive Weeks:** 20%  
+> **Instances:** 15%  
+
+The percentages were chosen based on the relative importance of each factor in determining a song's popularity. Time on chart is given the highest weight as it reflects sustained popularity over time, while peak position indicates the highest level of success achieved by the song. Consecutive weeks and instances are also important but are weighted slightly lower as they provide additional context to a song's performance. Since the numbers are vastly different from each other, I've decided to normalize each metric to a 0-1 scale using min-max normalization before applying the weights. The resulting song_metrics dataset contains the calculated popularity score alongside the aggregated metrics for analysis and ranking of songs.
+
+```{r}
+# Create song metrics with popularity score
+# 
+song_metrics <- billboard_nodupes |>
+  group_by(song, performer, featured_nonfeatured) |>
+  summarize(
+    chart_date = chart_date,
+    instances = n(),
+    consecutive_weeks = max(consecutive_weeks, na.rm=TRUE),
+    max_time = max(time_on_chart, na.rm=TRUE),    # maximum time on chart for song (weeks)
+    best_peak = min(peak_position, na.rm=TRUE),   # smaller = better
+    .groups="drop"
+  ) |>
+  mutate(
+    max_time = ifelse(is.infinite(max_time), NA_real_, max_time), # deal with weird nums
+    best_peak = ifelse(is.infinite(best_peak), NA_real_, best_peak), # deal with weird nums
+    max_time_s = rescale(replace_na(max_time,0)), # uses max time of chart and rescales from 0- 1 to compare other metrics
+    instances_s = rescale(instances, 0),  # normalizes instances from 0-1 to compare other metrics
+    peak_inv_s = rescale(replace_na(-best_peak,0)),  # invert peak so larger is better
+    weeks_s = rescale(replace_na(consecutive_weeks,0)),  # normalizes consecutive weeks from 0-1 to compare other metrics
+    popularity_score = round(0.4 * max_time_s + 0.25 * peak_inv_s + .2 * weeks_s + 0.15 * instances_s, 2))
+
+song_metrics <- song_metrics |>
+  select(song, performer, featured_nonfeatured, chart_date, instances, consecutive_weeks, max_time, best_peak, popularity_score) |>
+  arrange(desc(popularity_score))
+
+ datatable(song_metrics,
+    class = "table table-striped table-hover table-dark table-sm",
+    caption = "Billboard Hot 100 Top 10 Performers",
+    options = list(pageLength = 10, searching = FALSE, lengthChange = FALSE))
+```
+
+Using these metrics, we find **Ed Sheeran** taking 3 of the top 10 spots with his songs "Shape of You", "Perfect", and "Thinking Out Loud" and only one of the few with at least a **0.8** popularity score. Other notable artists in the top 10 include **Post Malone** and **Chainsmokers**.This indicates that these artists have not only achieved high peak positions but have also maintained their songs on the charts for extended periods, reflecting their widespread popularity during the 2015-2019 period. The **non-featured** songs take the majority of the top 10 spots, suggesting that solo performances can also achieve significant success on the charts.
+
+```{r}
+# Box and whisker plot of popularity score by featured vs non-featured
+song_metrics |>
+  filter(!is.na(popularity_score)) |>
+  mutate(featured_nonfeatured = factor(featured_nonfeatured, levels = c("nonfeatured", "featured"))) |>
+  ggplot(aes(x = featured_nonfeatured, y = popularity_score, fill = featured_nonfeatured)) +
+  geom_boxplot(width = 0.6, outlier.shape = 21, outlier.size = 1.5) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "white") +
+  scale_fill_manual(values = c("nonfeatured" = "#191414", "featured" = "#1DB954")) +
+  labs(title = "Popularity score (Billboard Top 100)", x = "", y = "popularity_score") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+From the box and whisker plot above, we can observe that non-featured songs tend to have a higher median popularity score compared to featured songs. The mean popularity score, indicated by the white diamond, also appears to be higher for non-featured songs. This suggests that solo performances may have a slight edge in terms of overall popularity on the Billboard Hot 100 during the 2015-2019 period. However, it's important to note that there is still a significant overlap in the popularity scores of both categories, indicating that featured songs can also achieve high levels of success. There's also an overwhelmingly amount of outliers in the non-featured category compared to the featured, yet the mean is so close. In general, it's safe to assume that non-featured songs perform spectacularly on the Billboard Hot 100 or it's a one hit wonder, while featured songs tend to perform at a consistent level without many outliers.
+
+```{r}
+# Summary Table
+stats_df <- song_metrics |>
+  group_by(featured_nonfeatured) |>
+  summarise(
+    num_songs = n(),
+    min = round(min(popularity_score, na.rm = TRUE),2),
+    Q1 = round(quantile(popularity_score, 0.25, na.rm = TRUE, type = 7),2),
+    median = round(median(popularity_score, na.rm = TRUE),2),
+    Q3 = round(quantile(popularity_score, 0.75, na.rm = TRUE, type = 7),2),
+    mean = round(mean(popularity_score, na.rm = TRUE),2),
+    max = round(max(popularity_score, na.rm = TRUE),2),
+    .groups = "drop"
+  ) |>
+  rowwise() |>
+  ungroup()
+```
+Featured_Nonfeatured| Num_Songs| Min | Q1 | Median | Q3 | Mean | Max
+-----|-----|-----|-----|-----|-----|-----|-----|-----:
+Featured|680|0.00|0.07|0.16|0.34|0.21|0.79
+Nonfeatured|1,835|0.00|0.08|0.19|0.34|0.23|0.85
+
+### Popularity Score Year over Year
+
+We've seen how music has grown year over year. From the 80's with the rise of pop and rock with Michael Jackson and Bon Jovi to the 90's with the emergence of hip-hop and R&B with Tupac and Mariah Carey., each decade has brought its own unique sound and style. The 2010's saw the dominance of streaming services, which transformed the way we consume music. With the convenience of on-demand access to millions of songs, listeners could explore a vast array of genres and artists like never before. This shift in consumption patterns has had a profound impact on the music industry, influencing everything from artist promotion to revenue models. But how is the popularity score affected year over year from 2015 to 2019 on featured and non-featured songs?
+
+```{r message=FALSE, warning=FALSE}
+# Extracting Popularity Score Year over Year
+avg_popularity_by_year <- song_metrics |>
+  mutate(year = round(year(chart_date),2)) |>
+  group_by(year, featured_nonfeatured) |>
+  summarise(avg_popularity = mean(popularity_score, na.rm = TRUE), .groups = "drop") |>
+  arrange(year, featured_nonfeatured)
+
+
+ggplot(avg_popularity_by_year, aes(x = year, y = avg_popularity, color = featured_nonfeatured)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  scale_color_manual(
+    values = c("featured" = "#1DB954",  # Spotify green
+              "nonfeatured" = "#191414"),  # Almost black (Spotify's dark color)
+    name = "Category",
+    breaks = c("featured", "nonfeatured"),
+    labels = c("Featured", "Non-Featured")
+  )+
+  labs(title = "Average Popularity Score by Year", 
+       x = "Year", 
+       y = "Average Popularity Score", 
+       color = "Category") +
+  theme_minimal()
+```
+
+From the line graph above, we can observe that both featured and non-featured songs have experienced a gradual decrease in average popularity scores from 2015 to 2019. Featured songs consistently maintain a higher average popularity score compared to featured songs throughout this period until 2018. This trend suggests that solo performances may have a stronger appeal to listeners, potentially due to the unique artistic expression and personal connection that solo artists can convey. Guess the common saying *Music was better back in my day.* holds some truth to it.
+
+### Popularity Score by Artist
+
+The most sought after question people are thinking of is which artist has the highest average popularity score on the Billboard Hot 100 from 2015 to 2019? To answer this, I will join the previous datasets that we created with split_data and song_metrics to get the average popularity score for each artist. Before that, we need to realize that some songs are one hit wonders which skews the average popularity score for certain artists. To mitigate this, I will also normalize the scores by adding weights based on song count. I will be joining that dataset with another previous dataset I had called top_artists in order to calculate the weighted popularity score for each artist.
+
+```{r message=FALSE, warning=FALSE}
+# (1) Join datasets together using song column
+top_performers_scores <- split_data |>
+  inner_join(song_metrics, by = "song")
+
+# (2) Join with top artists to get song counts
+top_performers_scores_combined <- top_performers_scores |>
+  inner_join(top_artists, by = "performer_cleaned")
+
+# (3) group it together and weigh it
+artist_aggregated <- top_performers_scores_combined |>
+  group_by(performer_cleaned) |>
+  summarise(
+    avg_popularity_score = round(mean(popularity_score, na.rm = TRUE),2),
+    num_songs = first(num_songs),  # Pull `num_songs` directly from top_artists
+    .groups = "drop"
+  ) |>
+  mutate(
+    weighted_popularity_score = round(avg_popularity_score * log10(num_songs + 1),2)  # Weight by log of song count
+  ) |>
+  arrange(desc(weighted_popularity_score))
+```
+
+After weighing scores based on song count, we find that **Post Malone** tops the list with a weighted popularity score of **0.52**, followed by **Maroon 5** with **0.48** and **Ed Sheeran** with **0.45**. This indicates that these artists not only have high average popularity scores but also a substantial number of songs on the Billboard Hot 100, reflecting their widespread appeal and consistent success in the music industry during the 2015-2019 period. I'm not surprised because til this day, I still have their songs on my Spotify playlist.
+
+
+```{r message=FALSE, warning=FALSE}
+# Scatter plot of number of songs vs. average popularity score
+ggplot(artist_aggregated, aes(x = num_songs, y = avg_popularity_score)) +
+  geom_point(size = 3, alpha = 0.8, color = "#1DB954") +
+  geom_smooth(method = "lm", color = "#191414", se = FALSE) +
+  labs(
+    title = "Number of Songs vs. Average Popularity Score",
+    x = "Number of Songs",
+    y = "Average Popularity Score"
+  ) +
+  theme_minimal()
+```
+This scatterplot illustrates the relationship between the number of songs an artist has on the Billboard Hot 100 and their average popularity score. The black represents a simple regression low, which looks relatively flat. This suggests that there is no strong correlation between the number of songs an artist has and their average popularity score. In other words, having more songs on the chart does not necessarily guarantee a higher average popularity score. In fact, it looks like having more songs hurt an artist's popularity score. This indicates that factors other than sheer quantity, such as song quality, marketing strategies, and audience engagement, play significant roles in determining an artist's popularity on the Billboard Hot 100.
 ----------------------
